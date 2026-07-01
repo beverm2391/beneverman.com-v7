@@ -1,0 +1,33 @@
+:root {
+  --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --serif: ui-serif, 'Iowan Old Style', 'Apple Garamond', Georgia, serif;
+  --mono: 'SFMono-Regular', 'Roboto Mono', 'Cascadia Code', Consolas, monospace;
+
+  font-family: var(--sans);
+  color: #f5f0e4;
+  background: #03050a;
+  font-synthesis: none;
+  text-rendering: geometricPrecision;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  background: #03050a;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100svh;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
