@@ -134,14 +134,14 @@ type NavigatorWithEffectHints = Navigator & {
   getBattery?: () => Promise<BatteryStatus>
 }
 
-const productionFontStylesheet =
-  'https://fonts.googleapis.com/css2?family=Geist:wght@250..650&display=optional'
 const debugFontStylesheet =
-  'https://fonts.googleapis.com/css2?family=Geist:wght@250..650&family=Inter:wght@250..650&family=Open+Sans:wght@250..650&family=Rubik:wght@250..650&display=optional'
+  'https://fonts.googleapis.com/css2?family=Inter:wght@250..650&family=Open+Sans:wght@250..650&family=Rubik:wght@250..650&display=optional'
 
 function useDeferredFontStylesheet(isDebug: boolean) {
   useEffect(() => {
-    const fontStylesheet = isDebug ? debugFontStylesheet : productionFontStylesheet
+    if (!isDebug) return
+
+    const fontStylesheet = debugFontStylesheet
     let timeoutId: number | undefined
     let idleId: number | undefined
 
@@ -284,7 +284,7 @@ function useCurrentVersion() {
   return version
 }
 
-function useAfterInteractiveShadowLayer(shouldLoad: boolean, version: ShadowVersion, isDebug: boolean) {
+function useAfterInteractiveShadowLayer(shouldLoad: boolean, version: ShadowVersion) {
   const [ShadowLayer, setShadowLayer] = useState<DaylightShadowLayerComponent | null>(null)
 
   useEffect(() => {
@@ -311,25 +311,15 @@ function useAfterInteractiveShadowLayer(shouldLoad: boolean, version: ShadowVers
 
     const scheduleLoad = () => {
       emitDebugTimelineEvent('chunk scheduled')
-      if ('requestIdleCallback' in window) {
-        window.requestIdleCallback(loadShadowLayer, { timeout: isDebug ? 1200 : 2800 })
-        return
-      }
-
-      globalThis.setTimeout(loadShadowLayer, isDebug ? 300 : 1600)
+      globalThis.setTimeout(loadShadowLayer, 0)
     }
 
-    if (document.readyState === 'complete') {
-      scheduleLoad()
-    } else {
-      window.addEventListener('load', scheduleLoad, { once: true })
-    }
+    scheduleLoad()
 
     return () => {
       isCancelled = true
-      window.removeEventListener('load', scheduleLoad)
     }
-  }, [isDebug, shouldLoad, version])
+  }, [shouldLoad, version])
 
   return ShadowLayer
 }
@@ -1028,7 +1018,7 @@ function App() {
   const shadowSourcePreview = useShadowSourcePreview()
   const timelineEvents = useDebugTimeline()
   const shadowCapability = useShadowCapability()
-  const ShadowLayer = useAfterInteractiveShadowLayer(shadowCapability.enabled, version, isDebug)
+  const ShadowLayer = useAfterInteractiveShadowLayer(shadowCapability.enabled, version)
   const [shadowSettings, setShadowSettings] = useState<ShadowSettings>({
     ...siteVisualConfig.shadowSettings,
   })
