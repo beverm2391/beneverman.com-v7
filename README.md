@@ -21,6 +21,10 @@ pnpm lint
 
 ## Direction
 
-The first pass is intentionally a small visual object: Maxime-Heckel-ish space
-shader, crisp ASCII moon, comet hints, and a soft grain overlay inspired by
-Fara Yan's tactile surface treatment.
+The current site pass is a quiet personal homepage: soft environmental
+background, tactile grain, simple text, and lightweight project/contact
+sections.
+
+The planet and atmosphere work lives in `src/experiments/ShaderExperiment.tsx`
+as shader research. Pull from it deliberately, but keep the homepage
+content-first unless a visual layer makes the site feel better.
