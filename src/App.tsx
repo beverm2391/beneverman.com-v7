@@ -422,6 +422,7 @@ function createShader(gl: WebGLRenderingContext, type: number, source: string) {
 
 function BackgroundShader({ mode, sunAngle }: { mode: BackgroundModeConfig; sunAngle: number }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const [isVisible, setIsVisible] = useState(false)
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -519,7 +520,19 @@ function BackgroundShader({ mode, sunAngle }: { mode: BackgroundModeConfig; sunA
     }
   }, [mode, sunAngle])
 
-  return <canvas aria-hidden="true" className="background-shader-layer" ref={canvasRef} />
+  useEffect(() => {
+    const frameId = requestAnimationFrame(() => setIsVisible(true))
+    return () => cancelAnimationFrame(frameId)
+  }, [])
+
+  return (
+    <canvas
+      aria-hidden="true"
+      className="background-shader-layer"
+      ref={canvasRef}
+      style={{ opacity: isVisible ? 1 : 0 }}
+    />
+  )
 }
 
 function DebugPanel({
@@ -1102,10 +1115,12 @@ function App() {
         backgroundColor: backgroundMode.color,
       }}
     >
-      <BackgroundShader mode={backgroundMode} sunAngle={shadowSettings.sunAngle} />
-      {shadowCapability.enabled && ShadowLayer ? (
-        <ShadowLayer mode={shadowMapMode} settings={shadowSettings} />
-      ) : null}
+      <div className="visual-scene-layer" aria-hidden="true">
+        <BackgroundShader mode={backgroundMode} sunAngle={shadowSettings.sunAngle} />
+        {shadowCapability.enabled && ShadowLayer ? (
+          <ShadowLayer mode={shadowMapMode} settings={shadowSettings} />
+        ) : null}
+      </div>
       <section className="intro" aria-label="About Ben Everman">
         <p className="name">Ben Everman</p>
         <p>

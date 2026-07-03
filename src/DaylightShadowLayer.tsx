@@ -709,12 +709,19 @@ export default function DaylightShadowLayer({
   mode: ShadowMapMode
   settings: ShadowSettings
 }) {
+  const [isVisible, setIsVisible] = useState(false)
+
   useEffect(() => {
     emitDebugTimelineEvent('shadow mounted')
   }, [])
 
+  useEffect(() => {
+    const frameId = requestAnimationFrame(() => setIsVisible(true))
+    return () => cancelAnimationFrame(frameId)
+  }, [])
+
   return (
-    <div className="daylight-shadow-layer" aria-hidden="true" style={{ opacity: settings.opacity }}>
+    <div className="daylight-shadow-layer" aria-hidden="true" style={{ opacity: isVisible ? settings.opacity : 0 }}>
       <Canvas
         camera={{ position: [0, 0, 1], near: 0.1, far: 10 }}
         dpr={[1, 1.5]}

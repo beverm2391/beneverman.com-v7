@@ -1,5 +1,5 @@
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { emitDebugTimelineEvent } from './debugTimeline'
 import { createBlobLSystemSource, createLeafLSystemSource } from './lSystemShadowSource'
@@ -546,12 +546,19 @@ function SourceSceneShadowPlane({ mode, settings }: { mode: ShadowMapMode; setti
 }
 
 export default function V2ShadowLayer({ mode, settings }: { mode: ShadowMapMode; settings: ShadowSettings }) {
+  const [isVisible, setIsVisible] = useState(false)
+
   useEffect(() => {
     emitDebugTimelineEvent('v2 source scene mounted')
   }, [])
 
+  useEffect(() => {
+    const frameId = requestAnimationFrame(() => setIsVisible(true))
+    return () => cancelAnimationFrame(frameId)
+  }, [])
+
   return (
-    <div className="daylight-shadow-layer" aria-hidden="true" style={{ opacity: settings.opacity }}>
+    <div className="daylight-shadow-layer" aria-hidden="true" style={{ opacity: isVisible ? settings.opacity : 0 }}>
       <Canvas
         camera={{ position: [0, 0, 1], near: 0.1, far: 10 }}
         dpr={[1, 1.5]}
