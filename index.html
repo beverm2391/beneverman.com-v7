@@ -3,11 +3,59 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="stylesheet" href="/src/index.css" />
+    <link rel="stylesheet" href="/src/App.css" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Ben Everman</title>
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <div id="root">
+      <main
+        class="site-shell"
+        style="
+          --intro-font-family: Geist, Inter, ui-sans-serif, sans-serif;
+          --intro-font-size: 1rem;
+          --intro-font-weight: 300;
+          --intro-letter-spacing: 0em;
+          --intro-line-height: 1.5;
+          --intro-max-width: 33rem;
+          --texture-opacity: 0.17;
+          --texture-scale: 200px;
+          background-color: #f2f0ee;
+        "
+      >
+        <section class="intro" aria-label="About Ben Everman">
+          <p class="name">Ben Everman</p>
+          <p>
+            I'm currently working at Tekmir, where we're building an end-to-end platform for mass-action
+            litigation.
+          </p>
+          <p>
+            In my free time, I like to work on technical projects, like training neural nets, AI automation,
+            and building full stack apps.
+          </p>
+          <p>
+            On any given day, you can probably find me working at one of my favorite coffee shops in Atlanta.
+          </p>
+        </section>
+        <div class="surface-texture" aria-hidden="true"></div>
+      </main>
+    </div>
+    <script type="module">
+      const bootApp = () => import('/src/main.tsx')
+      const isDebug = new URLSearchParams(window.location.search).has('debug')
+
+      if (isDebug) {
+        bootApp()
+      } else {
+        window.setTimeout(() => {
+          if ('requestIdleCallback' in window) {
+            window.requestIdleCallback(bootApp, { timeout: 1200 })
+          } else {
+            bootApp()
+          }
+        }, 1600)
+      }
+    </script>
   </body>
 </html>

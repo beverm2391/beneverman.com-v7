@@ -134,6 +134,54 @@ type NavigatorWithEffectHints = Navigator & {
   getBattery?: () => Promise<BatteryStatus>
 }
 
+const productionFontStylesheet =
+  'https://fonts.googleapis.com/css2?family=Geist:wght@250..650&display=optional'
+const debugFontStylesheet =
+  'https://fonts.googleapis.com/css2?family=Geist:wght@250..650&family=Inter:wght@250..650&family=Open+Sans:wght@250..650&family=Rubik:wght@250..650&display=optional'
+
+function useDeferredFontStylesheet(isDebug: boolean) {
+  useEffect(() => {
+    const fontStylesheet = isDebug ? debugFontStylesheet : productionFontStylesheet
+    let timeoutId: number | undefined
+    let idleId: number | undefined
+
+    const loadFonts = () => {
+      if (document.querySelector(`link[href="${fontStylesheet}"]`)) return
+
+      for (const href of ['https://fonts.googleapis.com', 'https://fonts.gstatic.com']) {
+        const preconnect = document.createElement('link')
+        preconnect.rel = 'preconnect'
+        preconnect.href = href
+        preconnect.crossOrigin = ''
+        document.head.append(preconnect)
+      }
+
+      const stylesheet = document.createElement('link')
+      stylesheet.rel = 'stylesheet'
+      stylesheet.href = fontStylesheet
+      document.head.append(stylesheet)
+    }
+
+    const scheduleFontLoad = () => {
+      if ('requestIdleCallback' in window) {
+        idleId = window.requestIdleCallback(loadFonts, { timeout: 1200 })
+        return
+      }
+
+      timeoutId = globalThis.setTimeout(loadFonts, 400)
+    }
+
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(scheduleFontLoad)
+    })
+
+    return () => {
+      if (idleId !== undefined && 'cancelIdleCallback' in window) window.cancelIdleCallback(idleId)
+      if (timeoutId !== undefined) globalThis.clearTimeout(timeoutId)
+    }
+  }, [isDebug])
+}
+
 function getShadowCapability(battery?: BatteryStatus | null): ShadowCapability {
   const navigatorHints = navigator as NavigatorWithEffectHints
   const reasons: string[] = []
@@ -236,7 +284,7 @@ function useCurrentVersion() {
   return version
 }
 
-function useAfterInteractiveShadowLayer(shouldLoad: boolean, version: ShadowVersion) {
+function useAfterInteractiveShadowLayer(shouldLoad: boolean, version: ShadowVersion, isDebug: boolean) {
   const [ShadowLayer, setShadowLayer] = useState<DaylightShadowLayerComponent | null>(null)
 
   useEffect(() => {
@@ -264,11 +312,11 @@ function useAfterInteractiveShadowLayer(shouldLoad: boolean, version: ShadowVers
     const scheduleLoad = () => {
       emitDebugTimelineEvent('chunk scheduled')
       if ('requestIdleCallback' in window) {
-        window.requestIdleCallback(loadShadowLayer, { timeout: 1200 })
+        window.requestIdleCallback(loadShadowLayer, { timeout: isDebug ? 1200 : 2800 })
         return
       }
 
-      globalThis.setTimeout(loadShadowLayer, 300)
+      globalThis.setTimeout(loadShadowLayer, isDebug ? 300 : 1600)
     }
 
     if (document.readyState === 'complete') {
@@ -281,7 +329,7 @@ function useAfterInteractiveShadowLayer(shouldLoad: boolean, version: ShadowVers
       isCancelled = true
       window.removeEventListener('load', scheduleLoad)
     }
-  }, [shouldLoad, version])
+  }, [isDebug, shouldLoad, version])
 
   return ShadowLayer
 }
@@ -974,12 +1022,13 @@ function DebugPanel({
 function App() {
   const isDebug = useDebugMode()
   const version = useCurrentVersion()
+  useDeferredFontStylesheet(isDebug)
   const [background, setBackground] = useState<BackgroundMode>(siteVisualConfig.background)
   const [font, setFont] = useState<FontMode>(siteVisualConfig.font)
   const shadowSourcePreview = useShadowSourcePreview()
   const timelineEvents = useDebugTimeline()
   const shadowCapability = useShadowCapability()
-  const ShadowLayer = useAfterInteractiveShadowLayer(shadowCapability.enabled, version)
+  const ShadowLayer = useAfterInteractiveShadowLayer(shadowCapability.enabled, version, isDebug)
   const [shadowSettings, setShadowSettings] = useState<ShadowSettings>({
     ...siteVisualConfig.shadowSettings,
   })
