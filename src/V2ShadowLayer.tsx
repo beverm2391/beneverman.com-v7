@@ -199,12 +199,17 @@ function makeOakLeafGeometry(lobeCount: number, lobeDepth: number, halfWidth: nu
     // lobe amplitude fades near the stem and the tip so both stay smooth
     const amp = ramp(0.12, 0.34, u) * (1 - ramp(0.82, 0.97, u))
     const sinus = Math.pow(0.5 + 0.5 * Math.cos(u * lobeCount * Math.PI * 2 + sidePhase), 1.6)
-    // fine margin roughness: two noise scales jitter the outline so edges
-    // read as toothed/organic instead of vector-smooth
+    // margin roughness must be notch-scale, not tooth-scale: the shadow
+    // penumbra blurs ~15-25px on screen, so fine serration vanishes. Chunky
+    // irregular notches (multiplicative, riding the lobes) survive the blur
+    // as visible edge texture.
     const serration =
-      (stableNoise(u * 97 + sidePhase * 13) - 0.5) * 0.14 +
-      (stableNoise(u * 31 + sidePhase * 7) - 0.5) * 0.1
-    return Math.max(0.004, halfWidth * scale * (envelope(u) * (1 - lobeDepth * amp * sinus) + serration * amp))
+      (stableNoise(u * 29 + sidePhase * 13) - 0.5) * 0.36 +
+      (stableNoise(u * 13 + sidePhase * 7) - 0.5) * 0.22
+    return Math.max(
+      0.004,
+      halfWidth * scale * envelope(u) * (1 - lobeDepth * amp * sinus) * (1 + serration * amp),
+    )
   }
 
   const upper: THREE.Vector2[] = []
