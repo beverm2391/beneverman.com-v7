@@ -50,7 +50,7 @@ export const siteVisualConfig = {
         samplerX: 0.52,
         samplerY: 0.5,
         scale: 1.35,
-        speed: 0.55,
+        speed: 1.1,
         strength: 1.5,
         sunAngle: 1.16,
       },
