@@ -287,7 +287,7 @@ function addSprig(
   const leafletCount = 4 + Math.round(stableNoise(seed + 21) * 2)
   const twigLength = leafletSize * leafletCount * 0.62
 
-  addRect(sprig, twigLength * 0.5, 0, twigLength, leafletSize * 0.09, Math.min(0.9, depth + 0.12), 0, strength)
+  addRect(sprig, twigLength * 0.5, 0, twigLength, leafletSize * 0.09, Math.min(0.9, depth + 0.04), 0, strength)
 
   for (let index = 0; index <= leafletCount; index += 1) {
     // oak habit: leaves cluster toward the twig tip and fan outward, rather
@@ -330,11 +330,13 @@ function addCanopy(scene: THREE.Scene, leafGeometries: THREE.BufferGeometry[], s
   const canopy = new THREE.Group()
   canopy.name = 'canopy'
 
+  // depthBias sets distance-from-window per clump: near-zero keeps leaf
+  // silhouettes tight, the biased clump renders as a soft far layer
   const clumps = [
-    { radius: 0.62, tilt: -0.42, x: -0.72, y: 0.92 },
-    { radius: 0.52, tilt: 0.24, x: -0.02, y: 1.04 },
-    { radius: 0.46, tilt: 0.72, x: 0.68, y: 0.86 },
-    { radius: 0.4, tilt: -1.08, x: -1.02, y: 0.18 },
+    { depthBias: 0, radius: 0.62, tilt: -0.42, x: -0.72, y: 0.92 },
+    { depthBias: 0.04, radius: 0.52, tilt: 0.24, x: -0.02, y: 1.04 },
+    { depthBias: 0.02, radius: 0.46, tilt: 0.72, x: 0.68, y: 0.86 },
+    { depthBias: 0.34, radius: 0.4, tilt: -1.08, x: -1.02, y: 0.18 },
   ]
 
   clumps.forEach((clump, clumpIndex) => {
@@ -345,14 +347,14 @@ function addCanopy(scene: THREE.Scene, leafGeometries: THREE.BufferGeometry[], s
     const baseSeed = 4200 + clumpIndex * 733
 
     // supporting branches running through the mass
-    addRect(group, 0, 0, clump.radius * 1.7 * settings.scale, 0.02 * settings.scale, 0.5, clump.tilt, strength)
+    addRect(group, 0, 0, clump.radius * 1.7 * settings.scale, 0.02 * settings.scale, 0.14 + clump.depthBias, clump.tilt, strength)
     addRect(
       group,
       Math.cos(clump.tilt + 0.9) * clump.radius * 0.4,
       Math.sin(clump.tilt + 0.9) * clump.radius * 0.4,
       clump.radius * 0.9 * settings.scale,
       0.013 * settings.scale,
-      0.44,
+      0.11 + clump.depthBias,
       clump.tilt + 0.9,
       strength,
     )
@@ -373,9 +375,10 @@ function addCanopy(scene: THREE.Scene, leafGeometries: THREE.BufferGeometry[], s
 
       const sprigX = Math.cos(theta) * radial * 1.12
       const sprigY = Math.sin(theta) * radial * 0.82
-      // lower depth = smaller caster = sharper per-leaf silhouette, so the
-      // lobes survive the sampling blur instead of rounding into puffs
-      const sprigDepth = 0.26 + (1 - rimFade) * 0.16 + stableNoise(seed + 11) * 0.12
+      // the red "depth" channel is a caster-size: every caster pixel renders
+      // as a disk of that radius, so any value much above ~0.1 dilates away
+      // silhouette detail smaller than the disk. Foliage must stay near-plane.
+      const sprigDepth = 0.04 + (1 - rimFade) * 0.05 + stableNoise(seed + 11) * 0.06 + clump.depthBias
 
       // connective stem running back toward the clump core so rim sprigs
       // read as attached to the branch web instead of floating
@@ -388,7 +391,7 @@ function addCanopy(scene: THREE.Scene, leafGeometries: THREE.BufferGeometry[], s
           sprigY - Math.sin(stemAngle) * stemLength * 0.5,
           stemLength,
           0.009 * settings.scale,
-          Math.min(0.9, sprigDepth + 0.12),
+          Math.min(0.9, sprigDepth + 0.04),
           stemAngle,
           strength,
         )
