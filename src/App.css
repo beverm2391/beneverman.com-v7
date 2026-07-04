@@ -109,9 +109,21 @@
   top: clamp(1rem, 2.5vw, 2rem);
   left: clamp(1.25rem, 3vw, 2.5rem);
   z-index: 2;
+  display: grid;
+  gap: 0.2rem;
+  justify-items: center;
   width: 3.1rem;
   color: #171717;
   pointer-events: none;
+}
+
+.sun-widget-clock {
+  color: rgba(23, 23, 23, 0.52);
+  font-family: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.6rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+  line-height: 1;
 }
 
 .inspiration-footer {

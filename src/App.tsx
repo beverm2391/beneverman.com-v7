@@ -1290,16 +1290,13 @@ function App() {
   const fontMode = fontModes.find((mode) => mode.label === font) ?? fontModes[0]
   const effectiveSunAngle = useAnimatedSunAngle(shadowSettings.sunAngle)
   // Everything below derives from the one animated sun angle. Cast shadows
-  // follow whichever luminary is above the horizon (sun by day, the antipodal
-  // full moon by night, fainter); both fades hit zero exactly at the horizon,
-  // so the 180-degree light flip happens while shadows are invisible. Shadow
-  // color mirrors the background's day phases: near-black by day, warm sepia
-  // at golden hour, cool navy under moonlight.
-  const sunShadowFactor = getShadowFactor(effectiveSunAngle)
-  const moonShadowFactor = getShadowFactor(effectiveSunAngle + Math.PI) * 0.35
-  const shadowLightAngle =
-    sunShadowFactor >= moonShadowFactor ? effectiveSunAngle : effectiveSunAngle + Math.PI
-  const shadowFactor = Math.max(sunShadowFactor, moonShadowFactor)
+  // are sun-only: intensity fades to zero at the horizons and the page rests
+  // shadow-free under moonlight. Shadow color mirrors the background's day
+  // phases (near-black midday, warm sepia toward golden hour), and edges are
+  // hardest at noon, softening as the sun drops and light crosses more
+  // atmosphere. The crispness multiplier bypasses the settings object so it
+  // cannot trigger the layers' texture-regenerating memos.
+  const shadowFactor = getShadowFactor(effectiveSunAngle)
   const sunElevation = Math.sin(effectiveSunAngle)
   const daylight = smoothstep(-0.12, 0.22, sunElevation)
   const goldenHour =
@@ -1309,13 +1306,7 @@ function App() {
     mixVec3([0.05, 0.05, 0.06], [0.26, 0.14, 0.05], goldenHour),
     daylight,
   )
-  // Shadow edge softness follows the active light's elevation: hardest at
-  // noon, soft near the horizons where light crosses more atmosphere, and
-  // softer still under moonlight so night shadows read as dapple, not crisp
-  // unexplained shadows. Applied as a multiplier on the configured crispness.
-  const lightElevation = Math.sin(shadowLightAngle)
-  const shadowCrispnessScale =
-    (0.45 + 0.55 * smoothstep(0.05, 0.6, lightElevation)) * (0.55 + 0.45 * daylight)
+  const shadowCrispnessScale = 0.45 + 0.55 * smoothstep(0.05, 0.6, sunElevation)
 
   useEffect(() => {
     document.documentElement.style.background = backgroundMode.color
@@ -1462,13 +1453,16 @@ function App() {
             mode={shadowMapMode}
             settings={{ ...shadowSettings, opacity: shadowSettings.opacity * shadowFactor }}
             shadowTint={shadowTint}
-            sunAngle={shadowLightAngle}
+            sunAngle={effectiveSunAngle}
           />
         ) : null}
       </div>
       {sunWidget === 'none' ? null : (
         <div className="sun-angle-widget" aria-hidden="true">
           <SunWidget angle={effectiveSunAngle} variant={sunWidget} />
+          <span className="sun-widget-clock">
+            {formatTimeOfDay(cycleTimeAtSunAngle(Math.PI - effectiveSunAngle) / sunCycleDurationSeconds)}
+          </span>
         </div>
       )}
       <section className="intro" aria-label="About Ben Everman">

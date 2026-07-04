@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import './SunWidget.css'
 
 // Small sun-position widgets shared by the homepage (top-left corner) and the
@@ -35,11 +36,12 @@ function mixRgbChannels(a: readonly [number, number, number], b: readonly [numbe
   return `${r}, ${g}, ${bl}`
 }
 
-// 1 above ~3.5 degrees of elevation, 0 a few degrees below the horizon, with a
-// smooth crossfade between. Drives the visibility of the sun/moon dots.
+// Dot visibility: fully visible through the horizon crossing (the ground-line
+// clip does the hiding there), fading out ~14 degrees below so no glow bleeds
+// once the dot has sunk out of sight.
 export function getSunFactor(angle: number) {
   const normalized = ((angle % tau) + tau) % tau
-  return clamp((Math.sin(normalized) + 0.06) / 0.12, 0, 1)
+  return clamp((Math.sin(normalized) + 0.24) / 0.22, 0, 1)
 }
 
 // 0 exactly at the horizon, 1 a few degrees above. Cast-shadow strength must
@@ -87,19 +89,25 @@ function MoonDot({ opacity, x, y }: { opacity: number; x: number; y: number }) {
 // A gnomon casting a shadow that swings and stretches opposite the sun. The
 // cot() shadow length blows up at the horizons, so it is clamped to the frame.
 function GnomonWidget({ angle, moonAngle, moonFactor, sunFactor, sunWarmth }: WidgetProps) {
+  const clipId = useId()
   const clampedAngle = clamp(angle, 0, Math.PI)
   const clampedMoonAngle = clamp(moonAngle, 0, Math.PI)
   const sunShadow = getShadowFactor(angle)
   const moonShadow = getShadowFactor(moonAngle) * 0.4
   const lightAngle = sunShadow >= moonShadow ? clampedAngle : clampedMoonAngle
   const shadowLength = clamp((-Math.cos(lightAngle) * 11) / Math.max(Math.sin(lightAngle), 0.3), -17, 17)
-  const sunX = 24 + Math.cos(clampedAngle) * 17
-  const sunY = 26 - Math.sin(clampedAngle) * 15
-  const moonX = 24 + Math.cos(clampedMoonAngle) * 17
-  const moonY = 26 - Math.sin(clampedMoonAngle) * 15
+  const sunX = 24 + Math.cos(angle) * 17
+  const sunY = 26 - Math.sin(angle) * 15
+  const moonX = 24 + Math.cos(moonAngle) * 17
+  const moonY = 26 - Math.sin(moonAngle) * 15
 
   return (
     <svg aria-hidden="true" className="sun-widget" viewBox="0 0 48 32">
+      <defs>
+        <clipPath id={clipId}>
+          <rect x="-2" y="-6" width="52" height="32" />
+        </clipPath>
+      </defs>
       <line className="sun-widget-ground" x1="4" y1="26" x2="44" y2="26" />
       <line
         className="sun-widget-shadow"
@@ -110,8 +118,10 @@ function GnomonWidget({ angle, moonAngle, moonFactor, sunFactor, sunWarmth }: Wi
         y2="26"
       />
       <line className="sun-widget-stick" x1="24" y1="26" x2="24" y2="15" />
-      <MoonDot opacity={moonFactor} x={moonX} y={moonY} />
-      <SunDot opacity={sunFactor} warmth={sunWarmth} x={sunX} y={sunY} />
+      <g clipPath={`url(#${clipId})`}>
+        <MoonDot opacity={moonFactor} x={moonX} y={moonY} />
+        <SunDot opacity={sunFactor} warmth={sunWarmth} x={sunX} y={sunY} />
+      </g>
     </svg>
   )
 }
@@ -119,35 +129,49 @@ function GnomonWidget({ angle, moonAngle, moonFactor, sunFactor, sunWarmth }: Wi
 // The sun's dotted day-path over a horizon line; the dot is evaluated on the
 // same cubic bezier the track draws so it never floats off the stroke.
 function ArcWidget({ angle, moonAngle, moonFactor, sunFactor, sunWarmth }: WidgetProps) {
+  const clipId = useId()
   const t = 1 - clamp(angle, 0, Math.PI) / Math.PI
   const moonT = 1 - clamp(moonAngle, 0, Math.PI) / Math.PI
   const sunX = cubicBezier(t, 8, 16, 32, 40)
-  const sunY = cubicBezier(t, 25, 8, 8, 25)
+  // Below the horizon the bezier param is pinned at the endpoint, so negative
+  // elevation sinks the dot straight down through the ground line instead.
+  const sunY = cubicBezier(t, 25, 8, 8, 25) - Math.min(Math.sin(angle), 0) * 20
   const moonX = cubicBezier(moonT, 8, 16, 32, 40)
-  const moonY = cubicBezier(moonT, 25, 8, 8, 25)
+  const moonY = cubicBezier(moonT, 25, 8, 8, 25) - Math.min(Math.sin(moonAngle), 0) * 20
 
   return (
     <svg aria-hidden="true" className="sun-widget" viewBox="0 0 48 32">
+      <defs>
+        <clipPath id={clipId}>
+          <rect x="-2" y="-6" width="52" height="31" />
+        </clipPath>
+      </defs>
       <path className="sun-widget-track" d="M 8 25 C 16 8 32 8 40 25" />
       <line className="sun-widget-ground" x1="4" y1="25" x2="44" y2="25" />
-      <MoonDot opacity={moonFactor} x={moonX} y={moonY} />
-      <SunDot opacity={sunFactor} warmth={sunWarmth} x={sunX} y={sunY} />
+      <g clipPath={`url(#${clipId})`}>
+        <MoonDot opacity={moonFactor} x={moonX} y={moonY} />
+        <SunDot opacity={sunFactor} warmth={sunWarmth} x={sunX} y={sunY} />
+      </g>
     </svg>
   )
 }
 
 // A semicircular gauge where the amber stroke fills with elapsed daylight.
 function GaugeWidget({ angle, moonAngle, moonFactor, sunFactor, sunWarmth }: WidgetProps) {
-  const clampedAngle = clamp(angle, 0, Math.PI)
-  const clampedMoonAngle = clamp(moonAngle, 0, Math.PI)
-  const progress = clampedAngle / Math.PI
-  const sunX = 24 + Math.cos(clampedAngle) * 18
-  const sunY = 26 - Math.sin(clampedAngle) * 18
-  const moonX = 24 + Math.cos(clampedMoonAngle) * 18
-  const moonY = 26 - Math.sin(clampedMoonAngle) * 18
+  const clipId = useId()
+  const progress = clamp(angle, 0, Math.PI) / Math.PI
+  const sunX = 24 + Math.cos(angle) * 18
+  const sunY = 26 - Math.sin(angle) * 18
+  const moonX = 24 + Math.cos(moonAngle) * 18
+  const moonY = 26 - Math.sin(moonAngle) * 18
 
   return (
     <svg aria-hidden="true" className="sun-widget" viewBox="0 0 48 32">
+      <defs>
+        <clipPath id={clipId}>
+          <rect x="-2" y="-6" width="52" height="32" />
+        </clipPath>
+      </defs>
       <path className="sun-widget-track" d="M 42 26 A 18 18 0 0 0 6 26" />
       <path
         className="sun-widget-progress"
@@ -158,8 +182,10 @@ function GaugeWidget({ angle, moonAngle, moonFactor, sunFactor, sunWarmth }: Wid
       />
       <line className="sun-widget-ground" x1="2" y1="26" x2="9" y2="26" />
       <line className="sun-widget-ground" x1="39" y1="26" x2="46" y2="26" />
-      <MoonDot opacity={moonFactor} x={moonX} y={moonY} />
-      <SunDot opacity={sunFactor} warmth={sunWarmth} x={sunX} y={sunY} />
+      <g clipPath={`url(#${clipId})`}>
+        <MoonDot opacity={moonFactor} x={moonX} y={moonY} />
+        <SunDot opacity={sunFactor} warmth={sunWarmth} x={sunX} y={sunY} />
+      </g>
     </svg>
   )
 }
@@ -167,18 +193,25 @@ function GaugeWidget({ angle, moonAngle, moonFactor, sunFactor, sunWarmth }: Wid
 // A literal angle glyph: horizon ray, sun ray, and a small amber arc between
 // them marking the measured elevation.
 function WedgeWidget({ angle, moonAngle, moonFactor, sunFactor, sunWarmth }: WidgetProps) {
+  const clipId = useId()
   const clampedAngle = clamp(angle, 0, Math.PI)
-  const clampedMoonAngle = clamp(moonAngle, 0, Math.PI)
   const rayX = 24 + Math.cos(clampedAngle) * 17
   const rayY = 26 - Math.sin(clampedAngle) * 17
-  const moonX = 24 + Math.cos(clampedMoonAngle) * 17
-  const moonY = 26 - Math.sin(clampedMoonAngle) * 17
+  const sunX = 24 + Math.cos(angle) * 17
+  const sunY = 26 - Math.sin(angle) * 17
+  const moonX = 24 + Math.cos(moonAngle) * 17
+  const moonY = 26 - Math.sin(moonAngle) * 17
   const arcRadius = 7.5
   const arcX = 24 + Math.cos(clampedAngle) * arcRadius
   const arcY = 26 - Math.sin(clampedAngle) * arcRadius
 
   return (
     <svg aria-hidden="true" className="sun-widget" viewBox="0 0 48 32">
+      <defs>
+        <clipPath id={clipId}>
+          <rect x="-2" y="-6" width="52" height="32" />
+        </clipPath>
+      </defs>
       <line className="sun-widget-ground" x1="4" y1="26" x2="44" y2="26" />
       <path
         className="sun-widget-angle-arc"
@@ -186,8 +219,10 @@ function WedgeWidget({ angle, moonAngle, moonFactor, sunFactor, sunWarmth }: Wid
         opacity={sunFactor}
       />
       <line className="sun-widget-needle" opacity={sunFactor} x1="24" y1="26" x2={rayX} y2={rayY} />
-      <MoonDot opacity={moonFactor} x={moonX} y={moonY} />
-      <SunDot opacity={sunFactor} warmth={sunWarmth} x={rayX} y={rayY} />
+      <g clipPath={`url(#${clipId})`}>
+        <MoonDot opacity={moonFactor} x={moonX} y={moonY} />
+        <SunDot opacity={sunFactor} warmth={sunWarmth} x={sunX} y={sunY} />
+      </g>
     </svg>
   )
 }
@@ -202,14 +237,19 @@ const widgetComponents = {
 export function SunWidget({ angle, variant }: { angle: number; variant: SunWidgetVariant }) {
   const Widget = widgetComponents[variant]
   const normalized = ((angle % tau) + tau) % tau
-  const moonAngle = (normalized + Math.PI) % tau
+  // Signed angles keep the dots' paths continuous a little below each
+  // horizon, so rises and sets read as slides behind the clipped ground line
+  // instead of opacity pops at the edge.
+  const signed = normalized > Math.PI * 1.5 ? normalized - tau : normalized
+  const moonNormalized = (normalized + Math.PI) % tau
+  const moonSigned = moonNormalized > Math.PI * 1.5 ? moonNormalized - tau : moonNormalized
   return (
     <Widget
-      angle={normalized}
-      moonAngle={moonAngle}
-      moonFactor={getSunFactor(moonAngle)}
-      sunFactor={getSunFactor(normalized)}
-      sunWarmth={1 - smoothstepValue(0.1, 0.5, Math.sin(normalized))}
+      angle={signed}
+      moonAngle={moonSigned}
+      moonFactor={getSunFactor(moonSigned)}
+      sunFactor={getSunFactor(signed)}
+      sunWarmth={1 - smoothstepValue(0.1, 0.5, Math.sin(signed))}
     />
   )
 }
