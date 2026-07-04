@@ -183,11 +183,13 @@ function makeCasterMaterial(depth: number, strength = 1) {
   })
 }
 
+// Rounded, slightly asymmetric leaf blob. At shadow blur the silhouette reads
+// as foliage texture; long pointed lenses read as fingers.
 function makeLeafGeometry() {
   const shape = new THREE.Shape()
   shape.moveTo(1, 0)
-  shape.bezierCurveTo(0.5, -0.52, -0.55, -0.42, -1, 0)
-  shape.bezierCurveTo(-0.55, 0.42, 0.5, 0.52, 1, 0)
+  shape.bezierCurveTo(0.7, -0.78, -0.68, -0.85, -1, -0.08)
+  shape.bezierCurveTo(-0.7, 0.72, 0.68, 0.8, 1, 0)
 
   return new THREE.ShapeGeometry(shape, 18)
 }
@@ -264,16 +266,16 @@ function addCanopy(scene: THREE.Scene, leafGeometry: THREE.BufferGeometry, setti
       const gapDistance = Math.abs(((theta - gapAngle + Math.PI * 3) % (Math.PI * 2)) - Math.PI)
       if (gapDistance < 0.52 && rimFade > 0.38 && stableNoise(seed + 5) < 0.7) continue
 
-      const length = (0.06 + (1 - rimFade) * 0.085 + stableNoise(seed + 7) * 0.035) * settings.scale
+      const length = (0.05 + (1 - rimFade) * 0.075 + stableNoise(seed + 7) * 0.03) * settings.scale
       addLeaf(
         group,
         leafGeometry,
         Math.cos(theta) * radial * 1.12,
         Math.sin(theta) * radial * 0.82,
         length,
-        length * (0.34 + stableNoise(seed + 9) * 0.16),
+        length * (0.6 + stableNoise(seed + 9) * 0.25),
         0.32 + (1 - rimFade) * 0.2 + stableNoise(seed + 11) * 0.15,
-        theta + Math.PI / 2 + (stableNoise(seed + 13) - 0.5) * 0.9,
+        stableNoise(seed + 13) * Math.PI * 2,
         strength,
       )
     }
