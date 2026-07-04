@@ -31,6 +31,7 @@ const diskSize = 80
 const diskSamples = 100
 const minShadowCasterSize = 20
 const maxShadowCasterSize = 300
+const desktopShadowAspect = 16 / 9
 
 const shadowVertexShader = `
   varying vec2 vTexCoord;
@@ -159,6 +160,13 @@ function stableNoise(value: number) {
 
 function getDensityCount(count: number, density: number) {
   return Math.max(1, Math.round(count * Math.max(0.1, density)))
+}
+
+function getSourceCameraVerticalSpan(width: number, height: number) {
+  const aspect = width / Math.max(1, height)
+  if (aspect >= desktopShadowAspect) return 1
+
+  return Math.min(1.55, 1 + (desktopShadowAspect / Math.max(0.1, aspect) - 1) * 0.18)
 }
 
 function makeCasterMaterial(depth: number, strength = 1) {
@@ -428,6 +436,7 @@ function SourceSceneShadowPlane({ mode, settings }: { mode: ShadowMapMode; setti
   const materialRef = useRef<THREE.ShaderMaterial>(null)
   const previewKeyRef = useRef('')
   const { height: textureHeight, width: textureWidth } = getShadowTextureSize(size.width, size.height, settings.resolution)
+  const sourceCameraVerticalSpan = getSourceCameraVerticalSpan(size.width, size.height)
   const sourceCamera = useMemo(() => new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 10), [])
   const sourceScene = useMemo(() => buildSourceScene(mode, settings), [mode, settings])
   const renderTarget = useMemo(() => {
@@ -464,9 +473,14 @@ function SourceSceneShadowPlane({ mode, settings }: { mode: ShadowMapMode; setti
   )
 
   useEffect(() => {
+    sourceCamera.top = sourceCameraVerticalSpan
+    sourceCamera.bottom = -sourceCameraVerticalSpan
+    sourceCamera.left = -1
+    sourceCamera.right = 1
     sourceCamera.position.set(0, 0, 2)
     sourceCamera.lookAt(0, 0, 0)
-  }, [sourceCamera])
+    sourceCamera.updateProjectionMatrix()
+  }, [sourceCamera, sourceCameraVerticalSpan])
 
   useEffect(() => () => renderTarget.dispose(), [renderTarget])
 
@@ -558,7 +572,11 @@ export default function V2ShadowLayer({ mode, settings }: { mode: ShadowMapMode;
   }, [])
 
   return (
-    <div className="daylight-shadow-layer" aria-hidden="true" style={{ opacity: isVisible ? settings.opacity : 0 }}>
+    <div
+      className={`daylight-shadow-layer ${isVisible ? 'is-visible' : ''}`}
+      aria-hidden="true"
+      style={{ ['--shadow-opacity' as string]: settings.opacity }}
+    >
       <Canvas
         camera={{ position: [0, 0, 1], near: 0.1, far: 10 }}
         dpr={[1, 1.5]}

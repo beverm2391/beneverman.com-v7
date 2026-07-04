@@ -5,7 +5,8 @@
   place-items: center;
   overflow: hidden;
   isolation: isolate;
-  padding: clamp(1.25rem, 4vw, 4rem);
+  --site-inline-padding: clamp(1.25rem, 4vw, 4rem);
+  padding: var(--site-inline-padding);
   color: #171717;
   background: #f2f0ee;
 }
@@ -32,10 +33,14 @@
   position: fixed;
   inset: 0;
   z-index: 1;
-  opacity: 0.24;
+  opacity: 0;
   pointer-events: none;
   transition: opacity 400ms cubic-bezier(0.37, 0, 0.63, 1);
   will-change: opacity;
+}
+
+.daylight-shadow-layer.is-visible {
+  opacity: var(--shadow-opacity, 0.24);
 }
 
 .daylight-shadow-layer canvas {
@@ -69,7 +74,10 @@
 .intro {
   position: relative;
   z-index: 2;
-  width: min(var(--intro-max-width, 31.25rem), 100%);
+  width: min(
+    var(--intro-max-width, 31.25rem),
+    calc(100vw - var(--site-inline-padding) - var(--site-inline-padding))
+  );
   font-family: var(--intro-font-family, var(--sans));
 }
 
@@ -124,6 +132,12 @@
   transition: none !important;
 }
 
+@media (max-width: 640px) {
+  .site-shell {
+    --site-inline-padding: clamp(1.75rem, 7vw, 2.25rem);
+  }
+}
+
 .debug-panel {
   position: fixed;
   top: clamp(1rem, 3vw, 2.5rem);
@@ -166,6 +180,17 @@
   gap: 0.25rem;
   padding: 0 0.35rem 0.25rem;
   border-bottom: 1px solid rgba(23, 23, 23, 0.12);
+}
+
+.debug-panel-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.1rem 0.35rem 0;
+}
+
+.debug-panel-actions button {
+  color: rgba(23, 23, 23, 0.72);
+  background: rgba(23, 23, 23, 0.06);
 }
 
 .shadow-effect-status {
