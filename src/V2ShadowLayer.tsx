@@ -183,27 +183,49 @@ function makeCasterMaterial(depth: number, strength = 1) {
   })
 }
 
-// Parametric ovate leaf: base at (-1, 0), tip at (1, 0), widest at `widest`
-// with half-width `halfWidth`, and the lower side scaled by `asymmetry` so no
-// leaf is a perfect lens. This is the classic simple-leaf silhouette (elm,
-// birch, ficus) that survives shadow blur.
-function makeLeafGeometry(halfWidth: number, widest: number, asymmetry: number) {
+// Procedural oak leaf: base at (-1, 0), tip at (1, 0). An obovate envelope
+// (widest past the middle) is cut by rounded lobes with deep sinuses -- the
+// signature oak margin. Lobes are exaggerated a touch so they survive the
+// shadow blur; phase offsets keep the two sides from mirroring exactly.
+function makeOakLeafGeometry(lobeCount: number, lobeDepth: number, halfWidth: number, phase: number) {
+  const samples = 44
+  const envelopePeak = Math.pow(0.62, 0.9) * Math.pow(0.38, 0.55)
+  const envelope = (u: number) => (Math.pow(u, 0.9) * Math.pow(1 - u, 0.55)) / envelopePeak
+  const ramp = (edge0: number, edge1: number, x: number) => {
+    const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0)))
+    return t * t * (3 - 2 * t)
+  }
+  const sideWidth = (u: number, sidePhase: number, scale: number) => {
+    // lobe amplitude fades near the stem and the tip so both stay smooth
+    const amp = ramp(0.12, 0.34, u) * (1 - ramp(0.82, 0.97, u))
+    const sinus = Math.pow(0.5 + 0.5 * Math.cos(u * lobeCount * Math.PI * 2 + sidePhase), 1.6)
+    return Math.max(0.004, halfWidth * scale * envelope(u) * (1 - lobeDepth * amp * sinus))
+  }
+
+  const upper: THREE.Vector2[] = []
+  const lower: THREE.Vector2[] = []
+  for (let index = 1; index < samples; index += 1) {
+    const u = index / samples
+    const x = -1 + u * 2
+    upper.push(new THREE.Vector2(x, sideWidth(u, phase, 1)))
+    lower.push(new THREE.Vector2(x, -sideWidth(u, phase + 2.4, 0.9)))
+  }
+  lower.reverse()
+
   const shape = new THREE.Shape()
   shape.moveTo(-1, 0)
-  shape.bezierCurveTo(-0.92, halfWidth * 0.6, widest - 0.3, halfWidth, widest, halfWidth)
-  shape.bezierCurveTo(widest + 0.5, halfWidth * 0.85, 0.75, halfWidth * 0.25, 1, 0)
-  shape.bezierCurveTo(0.75, -halfWidth * 0.25 * asymmetry, widest + 0.5, -halfWidth * 0.85 * asymmetry, widest, -halfWidth * asymmetry)
-  shape.bezierCurveTo(widest - 0.3, -halfWidth * asymmetry, -0.92, -halfWidth * 0.6 * asymmetry, -1, 0)
+  shape.splineThru([...upper, new THREE.Vector2(1, 0)])
+  shape.splineThru([...lower, new THREE.Vector2(-1, 0)])
 
-  return new THREE.ShapeGeometry(shape, 18)
+  return new THREE.ShapeGeometry(shape, 24)
 }
 
 function makeLeafGeometryVariants() {
   return [
-    makeLeafGeometry(0.34, -0.25, 0.92),
-    makeLeafGeometry(0.44, -0.12, 0.88),
-    makeLeafGeometry(0.28, -0.02, 0.95),
-    makeLeafGeometry(0.4, -0.32, 0.9),
+    makeOakLeafGeometry(4, 0.52, 0.38, 0.4),
+    makeOakLeafGeometry(3, 0.58, 0.42, 1.9),
+    makeOakLeafGeometry(4, 0.45, 0.34, 3.1),
+    makeOakLeafGeometry(5, 0.5, 0.4, 0.9),
   ]
 }
 
@@ -254,26 +276,27 @@ function addSprig(
   addRect(sprig, twigLength * 0.5, 0, twigLength, leafletSize * 0.09, Math.min(0.9, depth + 0.12), 0, strength)
 
   for (let index = 0; index <= leafletCount; index += 1) {
-    const t = index / leafletCount
-    const isTerminal = index === leafletCount
-    const side = index % 2 === 0 ? 1 : -1
-    const leafletLength = leafletSize * (1.05 - t * 0.38) * (0.85 + stableNoise(seed + index * 7) * 0.3)
-    const leafletAngle = isTerminal
-      ? (stableNoise(seed + 90) - 0.5) * 0.3
-      : side * (0.78 + stableNoise(seed + index * 11) * 0.4)
-    const baseX = twigLength * (0.18 + t * 0.82)
+    // oak habit: leaves cluster toward the twig tip and fan outward, rather
+    // than alternating evenly like a fern frond
+    const fan = leafletCount === 0 ? 0.5 : index / leafletCount
+    const spreadAngle =
+      (fan - 0.5) * (1.25 + stableNoise(seed + index * 5) * 0.45) +
+      (stableNoise(seed + index * 11) - 0.5) * 0.4
+    const attachT = 0.5 + fan * 0.5
+    const baseX = twigLength * attachT
+    const leafletLength = leafletSize * (0.85 + stableNoise(seed + index * 7) * 0.45)
     const geometry =
       leafGeometries[Math.floor(stableNoise(seed + index * 13) * leafGeometries.length) % leafGeometries.length]
 
     addLeaf(
       sprig,
       geometry,
-      baseX + Math.cos(leafletAngle) * leafletLength,
-      Math.sin(leafletAngle) * leafletLength,
+      baseX + Math.cos(spreadAngle) * leafletLength,
+      Math.sin(spreadAngle) * leafletLength,
       leafletLength,
-      leafletLength * (0.42 + stableNoise(seed + index * 17) * 0.14),
+      leafletLength * (0.55 + stableNoise(seed + index * 17) * 0.18),
       depth,
-      leafletAngle,
+      spreadAngle + (stableNoise(seed + index * 19) - 0.5) * 0.5,
       strength,
     )
   }
@@ -316,7 +339,7 @@ function addCanopy(scene: THREE.Scene, leafGeometries: THREE.BufferGeometry[], s
       strength,
     )
 
-    const sprigCount = getDensityCount(13, settings.density)
+    const sprigCount = getDensityCount(26, settings.density)
     const gapAngle = stableNoise(baseSeed + 1) * Math.PI * 2
 
     for (let index = 0; index < sprigCount; index += 1) {
@@ -336,7 +359,7 @@ function addCanopy(scene: THREE.Scene, leafGeometries: THREE.BufferGeometry[], s
         Math.cos(theta) * radial * 1.12,
         Math.sin(theta) * radial * 0.82,
         theta + (stableNoise(seed + 7) - 0.5) * 1.4,
-        (0.042 + (1 - rimFade) * 0.045 + stableNoise(seed + 9) * 0.018) * settings.scale,
+        (0.022 + (1 - rimFade) * 0.024 + stableNoise(seed + 9) * 0.01) * settings.scale,
         0.32 + (1 - rimFade) * 0.2 + stableNoise(seed + 11) * 0.15,
         strength,
         seed,
