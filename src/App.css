@@ -104,6 +104,16 @@
   font-weight: 400;
 }
 
+.sun-angle-widget {
+  position: fixed;
+  top: clamp(1rem, 2.5vw, 2rem);
+  left: clamp(1.25rem, 3vw, 2.5rem);
+  z-index: 2;
+  width: 3.1rem;
+  color: #171717;
+  pointer-events: none;
+}
+
 .inspiration-footer {
   position: fixed;
   left: clamp(1.25rem, 3vw, 2.5rem);

@@ -70,6 +70,7 @@ uniform highp float uTime;
 uniform highp float uAnimationSpeed;
 uniform highp float uAnimationStrength;
 uniform highp float uEdgeCrispness;
+uniform highp vec3 uShadowTint;
 uniform highp float uSampleCount;
 uniform highp float uShadowContrast;
 uniform highp float uSunAngle;
@@ -155,7 +156,7 @@ void main() {
   float farWeight = mix(0.16, 0.48, depthMix);
   float combinedShadow = 1.0 - ((1.0 - nearLayer * nearWeight) * (1.0 - midLayer * midWeight) * (1.0 - farLayer * farWeight));
   combinedShadow = clamp(combinedShadow, 0.0, 0.96);
-  vec3 color = vec3(1.0 - combinedShadow);
+  vec3 color = mix(vec3(1.0), uShadowTint, combinedShadow);
 
   gl_FragColor = vec4(color, 1.0);
 }
@@ -652,7 +653,7 @@ function useIdleShadowTexture(mode: ShadowMapMode, settings: ShadowSettings, wid
   return textureState
 }
 
-function ShadowShaderPlane({ mode, settings, sunAngle }: { mode: ShadowMapMode; settings: ShadowSettings; sunAngle: number }) {
+function ShadowShaderPlane({ mode, settings, shadowTint, sunAngle }: { mode: ShadowMapMode; settings: ShadowSettings; shadowTint: readonly [number, number, number]; sunAngle: number }) {
   const { size } = useThree()
   const { height: textureHeight, width: textureWidth } = getShadowTextureSize(size.width, size.height, settings.resolution)
   const shadowTexture = useIdleShadowTexture(mode, settings, textureWidth, textureHeight)
@@ -667,6 +668,7 @@ function ShadowShaderPlane({ mode, settings, sunAngle }: { mode: ShadowMapMode; 
       uLayerSpread: { value: settings.layerSpread },
       uSampleCount: { value: settings.sampleCount },
       uShadowContrast: { value: settings.contrast },
+      uShadowTint: { value: [...shadowTint] },
       uSunAngle: { value: settings.sunAngle },
       uTexture: { value: shadowTexture?.texture ?? null },
       uTime: { value: 0 },
@@ -686,6 +688,7 @@ function ShadowShaderPlane({ mode, settings, sunAngle }: { mode: ShadowMapMode; 
     materialRef.current.uniforms.uLayerSpread.value = settings.layerSpread
     materialRef.current.uniforms.uSampleCount.value = settings.sampleCount
     materialRef.current.uniforms.uShadowContrast.value = settings.contrast
+    materialRef.current.uniforms.uShadowTint.value = shadowTint
     materialRef.current.uniforms.uSunAngle.value = sunAngle
     materialRef.current.uniforms.uWarpStrength.value = mode === 'window' ? 0 : 1
   })
@@ -711,10 +714,12 @@ function ShadowShaderPlane({ mode, settings, sunAngle }: { mode: ShadowMapMode; 
 export default function DaylightShadowLayer({
   mode,
   settings,
+  shadowTint,
   sunAngle,
 }: {
   mode: ShadowMapMode
   settings: ShadowSettings
+  shadowTint: readonly [number, number, number]
   sunAngle: number
 }) {
   const [isVisible, setIsVisible] = useState(false)
@@ -742,7 +747,7 @@ export default function DaylightShadowLayer({
           gl.setClearColor(0xf2f0ee, 0)
         }}
       >
-        <ShadowShaderPlane mode={mode} settings={settings} sunAngle={sunAngle} />
+        <ShadowShaderPlane mode={mode} settings={settings} shadowTint={shadowTint} sunAngle={sunAngle} />
       </Canvas>
     </div>
   )

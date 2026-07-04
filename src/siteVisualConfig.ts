@@ -20,7 +20,7 @@ export const siteVisualConfig = {
     scale: 1.4,
     speed: 0.55,
     strength: 1.5,
-    sunAngle: 1.16,
+    sunAngle: 2.95,
   },
   textureSettings: {
     opacity: 0.17,
@@ -52,7 +52,7 @@ export const siteVisualConfig = {
         scale: 1.35,
         speed: 1.1,
         strength: 1.5,
-        sunAngle: 1.16,
+        sunAngle: 2.95,
       },
       textureSettings: {
         opacity: 0.17,

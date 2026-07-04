@@ -13,6 +13,21 @@ import {
   type ShadowSourcePreview,
 } from './shadowSourcePreview'
 import { siteVisualConfig } from './siteVisualConfig'
+import { SunIconLab } from './SunIconLab'
+import { getShadowFactor, SunWidget, sunWidgetVariants, type SunWidgetVariant } from './SunWidget'
+
+const tau = Math.PI * 2
+
+function smoothstep(edge0: number, edge1: number, x: number) {
+  const t = Math.min(Math.max((x - edge0) / (edge1 - edge0), 0), 1)
+  return t * t * (3 - 2 * t)
+}
+
+type Vec3 = readonly [number, number, number]
+
+function mixVec3(a: Vec3, b: Vec3, t: number): Vec3 {
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]
+}
 
 type ShadowSettings = {
   blindStrength: number
@@ -49,6 +64,7 @@ type TextureSettings = {
 type DaylightShadowLayerComponent = ComponentType<{
   mode: ShadowMapMode
   settings: ShadowSettings
+  shadowTint: Vec3
   sunAngle: number
 }>
 
@@ -58,6 +74,9 @@ type ShadowConfigTab = 'scene' | 'layers'
 type ShadowLayerTab = 'blinds' | 'canopy'
 type VisualSizeClass = 'mobilePortrait' | 'tabletPortrait' | 'desktop' | 'desktopWide'
 type AppliedVisualPreset = 'mobile' | 'desktop'
+type SunWidgetChoice = SunWidgetVariant | 'none'
+
+const sunWidgetChoices = ['none', ...sunWidgetVariants] as const
 
 const backgroundModes = [
   {
@@ -324,26 +343,66 @@ function getResponsiveVisualConfig(width: number, height: number) {
   }
 }
 
+// The sun crosses the viewport one-directionally like the real thing seen
+// from the northern hemisphere: rising at the left edge, arcing overhead,
+// setting at the right, then taking a quick transit below the viewport before
+// rising again. The cycle math below runs 0 -> 2*PI; the hook mirrors it
+// (PI - angle) to get the left-to-right travel. Cosine easing per segment
+// brings angular velocity to zero exactly at the horizon crossings, so day and
+// night join smoothly and sunrise/sunset linger.
+const sunDayDurationSeconds = 170
+const sunNightDurationSeconds = 60
+const sunCycleDurationSeconds = sunDayDurationSeconds + sunNightDurationSeconds
+
+function sunAngleAtCycleTime(cycleTime: number) {
+  if (cycleTime < sunDayDurationSeconds) {
+    const dayProgress = cycleTime / sunDayDurationSeconds
+    return (0.5 - 0.5 * Math.cos(Math.PI * dayProgress)) * Math.PI
+  }
+
+  const nightProgress = (cycleTime - sunDayDurationSeconds) / sunNightDurationSeconds
+  return Math.PI + (0.5 - 0.5 * Math.cos(Math.PI * nightProgress)) * Math.PI
+}
+
+// Inverse of sunAngleAtCycleTime: the configured base angle anchors where in
+// the cycle the animation starts, so page load matches siteVisualConfig and
+// the debug slider repositions the sun instead of being ignored.
+function cycleTimeAtSunAngle(angle: number) {
+  const normalized = ((angle % tau) + tau) % tau
+
+  if (normalized <= Math.PI) {
+    const easedProgress = normalized / Math.PI
+    return (Math.acos(1 - 2 * easedProgress) / Math.PI) * sunDayDurationSeconds
+  }
+
+  const easedProgress = (normalized - Math.PI) / Math.PI
+  return sunDayDurationSeconds + (Math.acos(1 - 2 * easedProgress) / Math.PI) * sunNightDurationSeconds
+}
+
 function useAnimatedSunAngle(baseSunAngle: number) {
-  const [angleDelta, setAngleDelta] = useState(0)
-  const publishedDeltaRef = useRef(0)
+  const [animatedAngle, setAnimatedAngle] = useState(baseSunAngle)
+  const publishedAngleRef = useRef(baseSunAngle)
 
   useEffect(() => {
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    if (prefersReducedMotion) return
+    if (prefersReducedMotion) {
+      publishedAngleRef.current = baseSunAngle
+      setAnimatedAngle(baseSunAngle)
+      return
+    }
 
     let frameId = 0
     const startedAt = performance.now()
+    const startCycleTime = cycleTimeAtSunAngle(Math.PI - baseSunAngle)
 
     const animate = () => {
       const elapsed = (performance.now() - startedAt) / 1000
-      const primaryDrift = Math.sin(elapsed * 0.18) * 2.25
-      const secondaryDrift = Math.sin(elapsed * 0.071 + 1.4) * 0.75
-      const nextDelta = primaryDrift + secondaryDrift
+      const nextAngle =
+        Math.PI - sunAngleAtCycleTime((startCycleTime + elapsed) % sunCycleDurationSeconds)
 
-      if (Math.abs(nextDelta - publishedDeltaRef.current) > 0.0008) {
-        publishedDeltaRef.current = nextDelta
-        setAngleDelta(nextDelta)
+      if (Math.abs(nextAngle - publishedAngleRef.current) > 0.0008) {
+        publishedAngleRef.current = nextAngle
+        setAnimatedAngle(nextAngle)
       }
       frameId = requestAnimationFrame(animate)
     }
@@ -353,9 +412,9 @@ function useAnimatedSunAngle(baseSunAngle: number) {
     return () => {
       cancelAnimationFrame(frameId)
     }
-  }, [])
+  }, [baseSunAngle])
 
-  return baseSunAngle + angleDelta
+  return animatedAngle
 }
 
 function useAfterInteractiveShadowLayer(shouldLoad: boolean, version: ShadowVersion) {
@@ -417,6 +476,7 @@ const backgroundFragmentShader = `
   uniform vec3 uCool;
   uniform float uGlowStrength;
   uniform float uSunAngle;
+  uniform float uGrainStrength;
 
   float hash(vec2 p) {
     p = fract(p * vec2(123.34, 456.21));
@@ -475,14 +535,44 @@ const backgroundFragmentShader = `
       shapedLight + (paperNoise - 0.5) * 0.08
     );
 
+    // Day-phase grading derived from sun elevation: the configured palette is
+    // the midday anchor and low sun pulls the glow toward golden-hour amber.
+    float sunElevation = sin(uSunAngle);
+    float daylight = smoothstep(-0.12, 0.22, sunElevation);
+    float goldenHour = smoothstep(-0.08, 0.04, sunElevation) * (1.0 - smoothstep(0.18, 0.55, sunElevation));
+
+    vec3 glowTint = mix(uGlow, vec3(1.0, 0.66, 0.42), goldenHour * 0.6);
+    float glowStrength = uGlowStrength * mix(0.12, 1.0, daylight) * (1.0 + goldenHour * 0.9);
+
     vec3 paperSide = mix(uBase, vec3(0.985, 0.965, 0.925), 0.46);
-    vec3 sunSide = mix(uGlow, vec3(1.0, 0.82, 0.5), 0.24);
-    vec3 color = mix(paperSide, sunSide, sunMix);
-    color = mix(color, uGlow, sunGlow * uGlowStrength * mix(1.0, 0.68, portraitScale));
+    vec3 sunSide = mix(glowTint, vec3(1.0, 0.82, 0.5), 0.24);
+    sunSide = mix(sunSide, vec3(1.0, 0.72, 0.5), goldenHour * 0.35);
+    vec3 color = mix(paperSide, sunSide, sunMix * mix(0.25, 1.0, daylight));
+    color = mix(color, glowTint, sunGlow * glowStrength * mix(1.0, 0.68, portraitScale));
     color = mix(color, uCool, (1.0 - sunMix) * smoothstep(0.36, 0.86, broadNoise) * 0.12);
 
-    color += (paperNoise - 0.5) * 0.035;
-    color += (broadNoise - 0.5) * 0.025;
+    // Night: darker, cooler moonlit paper. A full moon rides antipodal to the
+    // sun -- overhead whenever the sun is below the viewport -- so its silver
+    // glow is the sun's directional field mirrored.
+    float night = 1.0 - daylight;
+    float moonShapedLight = -directionalLight - portraitScale * 0.18;
+    float moonMix = smoothstep(
+      mix(-0.46, 0.04, portraitScale),
+      mix(0.56, 0.86, portraitScale),
+      moonShapedLight + (broadNoise - 0.5) * mix(0.16, 0.1, portraitScale)
+    );
+    float moonGlow = smoothstep(
+      mix(0.28, 0.55, portraitScale),
+      1.0,
+      moonShapedLight + (paperNoise - 0.5) * 0.08
+    );
+    vec3 nightPaper = color * vec3(0.6, 0.645, 0.75);
+    nightPaper = mix(nightPaper, vec3(0.72, 0.76, 0.86), moonMix * 0.22);
+    nightPaper = mix(nightPaper, vec3(0.85, 0.88, 0.96), moonGlow * 0.38);
+    color = mix(color, nightPaper, night);
+
+    color += (paperNoise - 0.5) * 0.035 * uGrainStrength;
+    color += (broadNoise - 0.5) * 0.025 * uGrainStrength;
 
     gl_FragColor = vec4(color, 1.0);
   }
@@ -504,14 +594,27 @@ function createShader(gl: WebGLRenderingContext, type: number, source: string) {
   return shader
 }
 
-function BackgroundShader({ mode, sunAngle }: { mode: BackgroundModeConfig; sunAngle: number }) {
+function BackgroundShader({
+  grainStrength,
+  mode,
+  sunAngle,
+}: {
+  grainStrength: number
+  mode: BackgroundModeConfig
+  sunAngle: number
+}) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const sunAngleRef = useRef(sunAngle)
+  const grainStrengthRef = useRef(grainStrength)
   const [isVisible, setIsVisible] = useState(false)
 
   useEffect(() => {
     sunAngleRef.current = sunAngle
   }, [sunAngle])
+
+  useEffect(() => {
+    grainStrengthRef.current = grainStrength
+  }, [grainStrength])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -551,6 +654,7 @@ function BackgroundShader({ mode, sunAngle }: { mode: BackgroundModeConfig; sunA
     const coolLocation = gl.getUniformLocation(program, 'uCool')
     const glowStrengthLocation = gl.getUniformLocation(program, 'uGlowStrength')
     const sunAngleLocation = gl.getUniformLocation(program, 'uSunAngle')
+    const grainStrengthLocation = gl.getUniformLocation(program, 'uGrainStrength')
     let frameId = 0
     let startTime = performance.now()
 
@@ -587,6 +691,7 @@ function BackgroundShader({ mode, sunAngle }: { mode: BackgroundModeConfig; sunA
       gl.uniform3fv(coolLocation, mode.shader.cool)
       gl.uniform1f(glowStrengthLocation, mode.shader.glowStrength)
       gl.uniform1f(sunAngleLocation, sunAngleRef.current)
+      gl.uniform1f(grainStrengthLocation, grainStrengthRef.current)
       gl.drawArrays(gl.TRIANGLES, 0, 6)
 
       frameId = requestAnimationFrame(render)
@@ -639,12 +744,14 @@ function DebugPanel({
   onLogPreset,
   onPreviewPick,
   onSettingsChange,
+  onSunWidgetChange,
   onTextureSettingsChange,
   onToggleCollapsed,
   onTypeSettingsChange,
   preview,
   settings,
   showPreview,
+  sunWidget,
   textureSettings,
   typeSettings,
 }: {
@@ -662,12 +769,14 @@ function DebugPanel({
   onLogPreset: () => void
   onPreviewPick: (x: number, y: number) => void
   onSettingsChange: (settings: ShadowSettings) => void
+  onSunWidgetChange: (widget: SunWidgetChoice) => void
   onTextureSettingsChange: (settings: TextureSettings) => void
   onToggleCollapsed: () => void
   onTypeSettingsChange: (settings: TypeSettings) => void
   preview: ShadowSourcePreview | null
   settings: ShadowSettings
   showPreview: boolean
+  sunWidget: SunWidgetChoice
   textureSettings: TextureSettings
   typeSettings: TypeSettings
 }) {
@@ -721,6 +830,13 @@ function DebugPanel({
           >
             <span className="shadow-background-swatch" />
             {mode.label}
+          </button>
+        ))}
+      </div>
+      <div className="shadow-map-buttons shadow-widget-buttons" aria-label="Sun widget">
+        {sunWidgetChoices.map((choice) => (
+          <button aria-pressed={sunWidget === choice} key={choice} onClick={() => onSunWidgetChange(choice)} type="button">
+            {choice}
           </button>
         ))}
       </div>
@@ -1121,6 +1237,7 @@ function DebugPanel({
 function App() {
   const isDebug = useDebugMode()
   const version = useCurrentVersion()
+  const isSunIconLab = window.location.pathname.startsWith('/sun-icon')
   useDeferredFontStylesheet(isDebug)
   const [responsiveVisualConfig, setResponsiveVisualConfig] = useState(() =>
     getResponsiveVisualConfig(window.innerWidth, window.innerHeight),
@@ -1131,13 +1248,14 @@ function App() {
   const shadowSourcePreview = useShadowSourcePreview()
   const timelineEvents = useDebugTimeline()
   const shadowCapability = useShadowCapability()
-  const ShadowLayer = useAfterInteractiveShadowLayer(shadowCapability.enabled, version)
+  const ShadowLayer = useAfterInteractiveShadowLayer(shadowCapability.enabled && !isSunIconLab, version)
   const [shadowSettings, setShadowSettings] = useState<ShadowSettings>({
     ...responsiveVisualConfig.shadowSettings,
   })
   const [showShadowSource, setShowShadowSource] = useState(false)
   const [shadowMapMode, setShadowMapMode] = useState<ShadowMapMode>(responsiveVisualConfig.shadowMapMode)
   const [isDebugPanelCollapsed, setIsDebugPanelCollapsed] = useState(false)
+  const [sunWidget, setSunWidget] = useState<SunWidgetChoice>('gnomon')
   const [debugPanelTab, setDebugPanelTab] = useState<DebugPanelTab>('shadow')
   const [typeSettings, setTypeSettings] = useState<TypeSettings>({
     ...responsiveVisualConfig.typeSettings,
@@ -1148,6 +1266,26 @@ function App() {
   const backgroundMode = backgroundModes.find((mode) => mode.label === background) ?? backgroundModes[0]
   const fontMode = fontModes.find((mode) => mode.label === font) ?? fontModes[0]
   const effectiveSunAngle = useAnimatedSunAngle(shadowSettings.sunAngle)
+  // Everything below derives from the one animated sun angle. Cast shadows
+  // follow whichever luminary is above the horizon (sun by day, the antipodal
+  // full moon by night, fainter); both fades hit zero exactly at the horizon,
+  // so the 180-degree light flip happens while shadows are invisible. Shadow
+  // color mirrors the background's day phases: near-black by day, warm sepia
+  // at golden hour, cool navy under moonlight.
+  const sunShadowFactor = getShadowFactor(effectiveSunAngle)
+  const moonShadowFactor = getShadowFactor(effectiveSunAngle + Math.PI) * 0.35
+  const shadowLightAngle =
+    sunShadowFactor >= moonShadowFactor ? effectiveSunAngle : effectiveSunAngle + Math.PI
+  const shadowFactor = Math.max(sunShadowFactor, moonShadowFactor)
+  const sunElevation = Math.sin(effectiveSunAngle)
+  const daylight = smoothstep(-0.12, 0.22, sunElevation)
+  const goldenHour =
+    smoothstep(-0.08, 0.04, sunElevation) * (1 - smoothstep(0.18, 0.55, sunElevation))
+  const shadowTint = mixVec3(
+    [0.1, 0.14, 0.26],
+    mixVec3([0.05, 0.05, 0.06], [0.26, 0.14, 0.05], goldenHour),
+    daylight,
+  )
 
   useEffect(() => {
     document.documentElement.style.background = backgroundMode.color
@@ -1251,6 +1389,7 @@ function App() {
       background,
       font,
       shadowMapMode,
+      sunWidget,
       effectiveSunAngle: Number(effectiveSunAngle.toFixed(4)),
       shadowSettings,
       textureSettings,
@@ -1260,6 +1399,10 @@ function App() {
     console.info('[beneverman preset]', preset)
     console.info(`[beneverman preset:${responsivePreset.sizeClass}] ${JSON.stringify(preset, null, 2)}`)
     emitDebugTimelineEvent('preset logged', responsivePreset.sizeClass)
+  }
+
+  if (isSunIconLab) {
+    return <SunIconLab />
   }
 
   return (
@@ -1278,11 +1421,25 @@ function App() {
       }}
     >
       <div className="visual-scene-layer" aria-hidden="true">
-        <BackgroundShader mode={backgroundMode} sunAngle={effectiveSunAngle} />
+        <BackgroundShader
+          grainStrength={Math.min(1, textureSettings.opacity / siteVisualConfig.textureSettings.opacity)}
+          mode={backgroundMode}
+          sunAngle={effectiveSunAngle}
+        />
         {shadowCapability.enabled && ShadowLayer ? (
-          <ShadowLayer mode={shadowMapMode} settings={shadowSettings} sunAngle={effectiveSunAngle} />
+          <ShadowLayer
+            mode={shadowMapMode}
+            settings={{ ...shadowSettings, opacity: shadowSettings.opacity * shadowFactor }}
+            shadowTint={shadowTint}
+            sunAngle={shadowLightAngle}
+          />
         ) : null}
       </div>
+      {sunWidget === 'none' ? null : (
+        <div className="sun-angle-widget" aria-hidden="true">
+          <SunWidget angle={effectiveSunAngle} variant={sunWidget} />
+        </div>
+      )}
       <section className="intro" aria-label="About Ben Everman">
         <p className="name">Ben Everman</p>
         <p>
@@ -1345,12 +1502,14 @@ function App() {
             emitDebugTimelineEvent('sampler moved')
           }}
           onSettingsChange={setShadowSettings}
+          onSunWidgetChange={setSunWidget}
           onTextureSettingsChange={setTextureSettings}
           onToggleCollapsed={() => setIsDebugPanelCollapsed((isCollapsed) => !isCollapsed)}
           onTypeSettingsChange={setTypeSettings}
           preview={shadowSourcePreview}
           settings={shadowSettings}
           showPreview={showShadowSource}
+          sunWidget={sunWidget}
           textureSettings={textureSettings}
           typeSettings={typeSettings}
         />
