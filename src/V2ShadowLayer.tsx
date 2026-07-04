@@ -3,6 +3,13 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { emitDebugTimelineEvent } from './debugTimeline'
 import { createBlobLSystemSource } from './lSystemShadowSource'
+import {
+  canopyClumps,
+  getDensityCount,
+  getWindowRects,
+  makeLeafGeometryVariants,
+  stableNoise,
+} from './shadowFoliage'
 import type { ShadowMapMode } from './shadowMapModes'
 import { publishShadowSourcePreview, type ShadowSourceSamplerPoint } from './shadowSourcePreview'
 
@@ -154,15 +161,6 @@ function getShadowTextureSize(width: number, height: number, resolution: number)
   }
 }
 
-function stableNoise(value: number) {
-  const x = Math.sin(value * 12.9898) * 43758.5453
-  return x - Math.floor(x)
-}
-
-function getDensityCount(count: number, density: number) {
-  return Math.max(1, Math.round(count * Math.max(0.1, density)))
-}
-
 function getSourceCameraVerticalSpan(width: number, height: number) {
   const aspect = width / Math.max(1, height)
   if (aspect >= desktopShadowAspect) return 1
@@ -181,66 +179,6 @@ function makeCasterMaterial(depth: number, strength = 1) {
     depthWrite: false,
     toneMapped: false,
   })
-}
-
-// Procedural oak leaf: base at (-1, 0), tip at (1, 0). An obovate envelope
-// (widest past the middle) is cut by rounded lobes with deep sinuses -- the
-// signature oak margin. Lobes are exaggerated a touch so they survive the
-// shadow blur; phase offsets keep the two sides from mirroring exactly.
-function makeOakLeafGeometry(lobeCount: number, lobeDepth: number, halfWidth: number, phase: number) {
-  const samples = 72
-  const envelopePeak = Math.pow(0.62, 0.9) * Math.pow(0.38, 0.55)
-  const envelope = (u: number) => (Math.pow(u, 0.9) * Math.pow(1 - u, 0.55)) / envelopePeak
-  const ramp = (edge0: number, edge1: number, x: number) => {
-    const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0)))
-    return t * t * (3 - 2 * t)
-  }
-  const sideWidth = (u: number, sidePhase: number, scale: number) => {
-    // lobe amplitude fades near the stem and the tip so both stay smooth
-    const amp = ramp(0.12, 0.34, u) * (1 - ramp(0.82, 0.97, u))
-    const sinus = Math.pow(0.5 + 0.5 * Math.cos(u * lobeCount * Math.PI * 2 + sidePhase), 1.6)
-    // margin roughness must be notch-scale, not tooth-scale: the shadow
-    // penumbra blurs ~15-25px on screen, so fine serration vanishes. Chunky
-    // irregular notches (multiplicative, riding the lobes) survive the blur
-    // as visible edge texture.
-    const serration =
-      (stableNoise(u * 29 + sidePhase * 13) - 0.5) * 0.36 +
-      (stableNoise(u * 13 + sidePhase * 7) - 0.5) * 0.22
-    return Math.max(
-      0.004,
-      halfWidth * scale * envelope(u) * (1 - lobeDepth * amp * sinus) * (1 + serration * amp),
-    )
-  }
-
-  const upper: THREE.Vector2[] = []
-  const lower: THREE.Vector2[] = []
-  for (let index = 1; index < samples; index += 1) {
-    const u = index / samples
-    const x = -1 + u * 2
-    upper.push(new THREE.Vector2(x, sideWidth(u, phase, 1)))
-    lower.push(new THREE.Vector2(x, -sideWidth(u, phase + 2.4, 0.9)))
-  }
-  lower.reverse()
-
-  // straight segments (no spline smoothing) keep the serration crisp; the
-  // shadow sampling blur softens it back to organic
-  const shape = new THREE.Shape()
-  shape.moveTo(-1, 0)
-  for (const point of upper) shape.lineTo(point.x, point.y)
-  shape.lineTo(1, 0)
-  for (const point of lower) shape.lineTo(point.x, point.y)
-  shape.lineTo(-1, 0)
-
-  return new THREE.ShapeGeometry(shape, 24)
-}
-
-function makeLeafGeometryVariants() {
-  return [
-    makeOakLeafGeometry(4, 0.62, 0.3, 0.4),
-    makeOakLeafGeometry(3, 0.68, 0.34, 1.9),
-    makeOakLeafGeometry(4, 0.58, 0.27, 3.1),
-    makeOakLeafGeometry(5, 0.6, 0.32, 0.9),
-  ]
 }
 
 function addLeaf(parent: THREE.Object3D, geometry: THREE.BufferGeometry, x: number, y: number, length: number, width: number, depth: number, rotation: number, strength = 1) {
@@ -330,16 +268,7 @@ function addCanopy(scene: THREE.Scene, leafGeometries: THREE.BufferGeometry[], s
   const canopy = new THREE.Group()
   canopy.name = 'canopy'
 
-  // depthBias sets distance-from-window per clump: near-zero keeps leaf
-  // silhouettes tight, the biased clump renders as a soft far layer
-  const clumps = [
-    { depthBias: 0, radius: 0.62, tilt: -0.42, x: -0.72, y: 0.92 },
-    { depthBias: 0.04, radius: 0.52, tilt: 0.24, x: -0.02, y: 1.04 },
-    { depthBias: 0.02, radius: 0.46, tilt: 0.72, x: 0.68, y: 0.86 },
-    { depthBias: 0.34, radius: 0.4, tilt: -1.08, x: -1.02, y: 0.18 },
-  ]
-
-  clumps.forEach((clump, clumpIndex) => {
+  canopyClumps.forEach((clump, clumpIndex) => {
     const group = new THREE.Group()
     group.position.set(clump.x, clump.y, 0)
     group.userData = { baseX: clump.x, baseY: clump.y, phase: clumpIndex * 1.7 }
@@ -417,24 +346,9 @@ function addCanopy(scene: THREE.Scene, leafGeometries: THREE.BufferGeometry[], s
 }
 
 function addWindow(scene: THREE.Scene, settings: ShadowSettings, strength = 1) {
-  const rotation = -0.13
-  const slatCount = getDensityCount(10, settings.density)
-
-  for (let index = 0; index < slatCount; index += 1) {
-    const t = index / Math.max(1, slatCount - 1)
-    const seed = 720 + index * 19
-    const x = (stableNoise(seed + 17) - 0.5) * 0.08
-    const y = 1.08 - t * 2.16 + (stableNoise(seed) - 0.5) * 0.032
-    const width = (2.66 + stableNoise(seed + 11) * 0.36) * settings.scale
-    const height = (0.026 + stableNoise(seed + 5) * 0.022) * settings.scale
-    const depth = 0.36 + t * 0.42 + (stableNoise(seed + 23) - 0.5) * 0.16
-
-    addRect(scene, x, y, width, height, depth, rotation + (stableNoise(seed + 29) - 0.5) * 0.03, strength)
+  for (const rect of getWindowRects(settings.density, settings.scale)) {
+    addRect(scene, rect.x, rect.y, rect.width, rect.height, rect.depth, rect.rotation, strength)
   }
-
-  addRect(scene, -0.62, 0.04, 0.032 * settings.scale, 2.36 * settings.scale, 0.38, rotation, strength)
-  addRect(scene, 0.62, 0, 0.026 * settings.scale, 2.26 * settings.scale, 0.46, rotation, strength)
-  addRect(scene, 0, 1.02, 2.7 * settings.scale, 0.04 * settings.scale, 0.5, rotation, strength)
 }
 
 function addPaper(scene: THREE.Scene, settings: ShadowSettings) {

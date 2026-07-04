@@ -70,7 +70,7 @@ type ShadowLayerComponent = ComponentType<{
   sunAngle: number
 }>
 
-type ShadowVersion = 'v1' | 'v2'
+type ShadowVersion = 'v1' | 'v2' | 'v3'
 type DebugPanelTab = 'shadow' | 'type' | 'logs'
 type ShadowConfigTab = 'scene' | 'layers'
 type ShadowLayerTab = 'blinds' | 'canopy'
@@ -291,10 +291,13 @@ function useShadowCapability() {
   return capability
 }
 
-// v2 (THREE source scene) is the site default; v1 (canvas texture layer) is
-// kept reachable at /v1 for comparison.
+// v2 (THREE source scene) is the site default; v1 (canvas texture layer) and
+// v3 (PCSS light-and-shadow scene) are reachable at /v1 and /v3 for
+// comparison.
 function getCurrentVersion(): ShadowVersion {
-  return window.location.pathname.startsWith('/v1') ? 'v1' : 'v2'
+  if (window.location.pathname.startsWith('/v1')) return 'v1'
+  if (window.location.pathname.startsWith('/v3')) return 'v3'
+  return 'v2'
 }
 
 function useCurrentVersion() {
@@ -451,7 +454,11 @@ function useAfterInteractiveShadowLayer(shouldLoad: boolean, version: ShadowVers
     const loadShadowLayer = () => {
       emitDebugTimelineEvent('chunk requested', version)
       const layerModule =
-        version === 'v1' ? import('./DaylightShadowLayer') : import('./V2ShadowLayer')
+        version === 'v1'
+          ? import('./DaylightShadowLayer')
+          : version === 'v3'
+            ? import('./V3ShadowLayer')
+            : import('./V2ShadowLayer')
 
       void layerModule.then((module) => {
         if (isCancelled) return
