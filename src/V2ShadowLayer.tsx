@@ -231,10 +231,10 @@ function makeOakLeafGeometry(lobeCount: number, lobeDepth: number, halfWidth: nu
 
 function makeLeafGeometryVariants() {
   return [
-    makeOakLeafGeometry(4, 0.52, 0.38, 0.4),
-    makeOakLeafGeometry(3, 0.58, 0.42, 1.9),
-    makeOakLeafGeometry(4, 0.45, 0.34, 3.1),
-    makeOakLeafGeometry(5, 0.5, 0.4, 0.9),
+    makeOakLeafGeometry(4, 0.62, 0.3, 0.4),
+    makeOakLeafGeometry(3, 0.68, 0.34, 1.9),
+    makeOakLeafGeometry(4, 0.58, 0.27, 3.1),
+    makeOakLeafGeometry(5, 0.6, 0.32, 0.9),
   ]
 }
 
@@ -279,7 +279,7 @@ function addSprig(
   sprig.position.set(x, y, 0)
   sprig.rotation.z = angle
 
-  const leafletCount = 5 + Math.round(stableNoise(seed + 21) * 2)
+  const leafletCount = 4 + Math.round(stableNoise(seed + 21) * 2)
   const twigLength = leafletSize * leafletCount * 0.62
 
   addRect(sprig, twigLength * 0.5, 0, twigLength, leafletSize * 0.09, Math.min(0.9, depth + 0.12), 0, strength)
@@ -307,7 +307,7 @@ function addSprig(
       baseX + Math.cos(rotation) * leafletLength * 0.92,
       Math.sin(rotation) * leafletLength * 0.92,
       leafletLength,
-      leafletLength * (0.55 + stableNoise(seed + index * 17) * 0.18),
+      leafletLength * (0.4 + stableNoise(seed + index * 17) * 0.14),
       depth,
       rotation,
       strength,
@@ -352,7 +352,7 @@ function addCanopy(scene: THREE.Scene, leafGeometries: THREE.BufferGeometry[], s
       strength,
     )
 
-    const sprigCount = getDensityCount(26, settings.density)
+    const sprigCount = getDensityCount(20, settings.density)
     const gapAngle = stableNoise(baseSeed + 1) * Math.PI * 2
 
     for (let index = 0; index < sprigCount; index += 1) {
@@ -368,7 +368,9 @@ function addCanopy(scene: THREE.Scene, leafGeometries: THREE.BufferGeometry[], s
 
       const sprigX = Math.cos(theta) * radial * 1.12
       const sprigY = Math.sin(theta) * radial * 0.82
-      const sprigDepth = 0.32 + (1 - rimFade) * 0.2 + stableNoise(seed + 11) * 0.15
+      // lower depth = smaller caster = sharper per-leaf silhouette, so the
+      // lobes survive the sampling blur instead of rounding into puffs
+      const sprigDepth = 0.26 + (1 - rimFade) * 0.16 + stableNoise(seed + 11) * 0.12
 
       // connective stem running back toward the clump core so rim sprigs
       // read as attached to the branch web instead of floating
@@ -393,7 +395,7 @@ function addCanopy(scene: THREE.Scene, leafGeometries: THREE.BufferGeometry[], s
         sprigX,
         sprigY,
         theta + (stableNoise(seed + 7) - 0.5) * 1.4,
-        (0.022 + (1 - rimFade) * 0.024 + stableNoise(seed + 9) * 0.01) * settings.scale,
+        (0.031 + (1 - rimFade) * 0.033 + stableNoise(seed + 9) * 0.013) * settings.scale,
         sprigDepth,
         strength,
         seed,
