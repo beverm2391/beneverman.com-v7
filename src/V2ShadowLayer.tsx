@@ -188,7 +188,7 @@ function makeCasterMaterial(depth: number, strength = 1) {
 // signature oak margin. Lobes are exaggerated a touch so they survive the
 // shadow blur; phase offsets keep the two sides from mirroring exactly.
 function makeOakLeafGeometry(lobeCount: number, lobeDepth: number, halfWidth: number, phase: number) {
-  const samples = 44
+  const samples = 72
   const envelopePeak = Math.pow(0.62, 0.9) * Math.pow(0.38, 0.55)
   const envelope = (u: number) => (Math.pow(u, 0.9) * Math.pow(1 - u, 0.55)) / envelopePeak
   const ramp = (edge0: number, edge1: number, x: number) => {
@@ -199,7 +199,12 @@ function makeOakLeafGeometry(lobeCount: number, lobeDepth: number, halfWidth: nu
     // lobe amplitude fades near the stem and the tip so both stay smooth
     const amp = ramp(0.12, 0.34, u) * (1 - ramp(0.82, 0.97, u))
     const sinus = Math.pow(0.5 + 0.5 * Math.cos(u * lobeCount * Math.PI * 2 + sidePhase), 1.6)
-    return Math.max(0.004, halfWidth * scale * envelope(u) * (1 - lobeDepth * amp * sinus))
+    // fine margin roughness: two noise scales jitter the outline so edges
+    // read as toothed/organic instead of vector-smooth
+    const serration =
+      (stableNoise(u * 97 + sidePhase * 13) - 0.5) * 0.14 +
+      (stableNoise(u * 31 + sidePhase * 7) - 0.5) * 0.1
+    return Math.max(0.004, halfWidth * scale * (envelope(u) * (1 - lobeDepth * amp * sinus) + serration * amp))
   }
 
   const upper: THREE.Vector2[] = []
@@ -212,10 +217,14 @@ function makeOakLeafGeometry(lobeCount: number, lobeDepth: number, halfWidth: nu
   }
   lower.reverse()
 
+  // straight segments (no spline smoothing) keep the serration crisp; the
+  // shadow sampling blur softens it back to organic
   const shape = new THREE.Shape()
   shape.moveTo(-1, 0)
-  shape.splineThru([...upper, new THREE.Vector2(1, 0)])
-  shape.splineThru([...lower, new THREE.Vector2(-1, 0)])
+  for (const point of upper) shape.lineTo(point.x, point.y)
+  shape.lineTo(1, 0)
+  for (const point of lower) shape.lineTo(point.x, point.y)
+  shape.lineTo(-1, 0)
 
   return new THREE.ShapeGeometry(shape, 24)
 }
@@ -285,18 +294,22 @@ function addSprig(
     const attachT = 0.5 + fan * 0.5
     const baseX = twigLength * attachT
     const leafletLength = leafletSize * (0.85 + stableNoise(seed + index * 7) * 0.45)
+    const rotation = spreadAngle + (stableNoise(seed + index * 19) - 0.5) * 0.5
     const geometry =
       leafGeometries[Math.floor(stableNoise(seed + index * 13) * leafGeometries.length) % leafGeometries.length]
 
+    // the leaf base (geometry x = -1) must land on the twig: offset the mesh
+    // center along its own rotation, slightly under one leaf-length, so the
+    // base overlaps the twig instead of floating beside it
     addLeaf(
       sprig,
       geometry,
-      baseX + Math.cos(spreadAngle) * leafletLength,
-      Math.sin(spreadAngle) * leafletLength,
+      baseX + Math.cos(rotation) * leafletLength * 0.92,
+      Math.sin(rotation) * leafletLength * 0.92,
       leafletLength,
       leafletLength * (0.55 + stableNoise(seed + index * 17) * 0.18),
       depth,
-      spreadAngle + (stableNoise(seed + index * 19) - 0.5) * 0.5,
+      rotation,
       strength,
     )
   }
@@ -353,14 +366,35 @@ function addCanopy(scene: THREE.Scene, leafGeometries: THREE.BufferGeometry[], s
       const gapDistance = Math.abs(((theta - gapAngle + Math.PI * 3) % (Math.PI * 2)) - Math.PI)
       if (gapDistance < 0.5 && rimFade > 0.4 && stableNoise(seed + 5) < 0.65) continue
 
+      const sprigX = Math.cos(theta) * radial * 1.12
+      const sprigY = Math.sin(theta) * radial * 0.82
+      const sprigDepth = 0.32 + (1 - rimFade) * 0.2 + stableNoise(seed + 11) * 0.15
+
+      // connective stem running back toward the clump core so rim sprigs
+      // read as attached to the branch web instead of floating
+      const stemAngle = Math.atan2(sprigY, sprigX)
+      const stemLength = radial * 0.55
+      if (stemLength > 0.03) {
+        addRect(
+          group,
+          sprigX - Math.cos(stemAngle) * stemLength * 0.5,
+          sprigY - Math.sin(stemAngle) * stemLength * 0.5,
+          stemLength,
+          0.009 * settings.scale,
+          Math.min(0.9, sprigDepth + 0.12),
+          stemAngle,
+          strength,
+        )
+      }
+
       addSprig(
         group,
         leafGeometries,
-        Math.cos(theta) * radial * 1.12,
-        Math.sin(theta) * radial * 0.82,
+        sprigX,
+        sprigY,
         theta + (stableNoise(seed + 7) - 0.5) * 1.4,
         (0.022 + (1 - rimFade) * 0.024 + stableNoise(seed + 9) * 0.01) * settings.scale,
-        0.32 + (1 - rimFade) * 0.2 + stableNoise(seed + 11) * 0.15,
+        sprigDepth,
         strength,
         seed,
       )
