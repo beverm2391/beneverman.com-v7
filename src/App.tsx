@@ -55,6 +55,8 @@ type ShadowVersion = 'v1' | 'v2'
 type DebugPanelTab = 'shadow' | 'type' | 'logs'
 type ShadowConfigTab = 'scene' | 'layers'
 type ShadowLayerTab = 'blinds' | 'canopy'
+type VisualSizeClass = 'mobilePortrait' | 'tabletPortrait' | 'desktop' | 'desktopWide'
+type AppliedVisualPreset = 'mobile' | 'desktop'
 
 const backgroundModes = [
   {
@@ -282,6 +284,43 @@ function useCurrentVersion() {
   }, [])
 
   return version
+}
+
+function getVisualSizeClass(width: number, height: number): VisualSizeClass {
+  const aspect = width / Math.max(1, height)
+
+  if (aspect < 0.78) return 'mobilePortrait'
+  if (aspect < siteVisualConfig.responsivePresets.mobilePortrait.maxAspect) return 'tabletPortrait'
+  if (aspect < 1.65) return 'desktop'
+  return 'desktopWide'
+}
+
+function getResponsiveVisualConfig(width: number, height: number) {
+  const sizeClass = getVisualSizeClass(width, height)
+  const appliedPreset: AppliedVisualPreset =
+    sizeClass === 'mobilePortrait' || sizeClass === 'tabletPortrait' ? 'mobile' : 'desktop'
+  const responsivePreset =
+    appliedPreset === 'mobile' ? siteVisualConfig.responsivePresets.mobilePortrait : undefined
+
+  return {
+    appliedPreset,
+    sizeClass,
+    background: siteVisualConfig.background,
+    font: siteVisualConfig.font,
+    shadowMapMode: siteVisualConfig.shadowMapMode,
+    shadowSettings: {
+      ...siteVisualConfig.shadowSettings,
+      ...(responsivePreset?.shadowSettings ?? {}),
+    },
+    textureSettings: {
+      ...siteVisualConfig.textureSettings,
+      ...(responsivePreset?.textureSettings ?? {}),
+    },
+    typeSettings: {
+      ...siteVisualConfig.typeSettings,
+      ...(responsivePreset?.typeSettings ?? {}),
+    },
+  }
 }
 
 function useAfterInteractiveShadowLayer(shouldLoad: boolean, version: ShadowVersion) {
@@ -547,6 +586,7 @@ function DebugPanel({
   onBackgroundChange,
   onChange,
   onFontChange,
+  onLogPreset,
   onPreviewPick,
   onSettingsChange,
   onTextureSettingsChange,
@@ -569,6 +609,7 @@ function DebugPanel({
   onBackgroundChange: (background: BackgroundMode) => void
   onChange: (mode: ShadowMapMode) => void
   onFontChange: (font: FontMode) => void
+  onLogPreset: () => void
   onPreviewPick: (x: number, y: number) => void
   onSettingsChange: (settings: ShadowSettings) => void
   onTextureSettingsChange: (settings: TextureSettings) => void
@@ -600,6 +641,11 @@ function DebugPanel({
             {tab}
           </button>
         ))}
+      </div>
+      <div className="debug-panel-actions">
+        <button onClick={onLogPreset} type="button">
+          log preset
+        </button>
       </div>
       {activeTab === 'shadow' ? (
         <>
@@ -1026,24 +1072,28 @@ function App() {
   const isDebug = useDebugMode()
   const version = useCurrentVersion()
   useDeferredFontStylesheet(isDebug)
-  const [background, setBackground] = useState<BackgroundMode>(siteVisualConfig.background)
-  const [font, setFont] = useState<FontMode>(siteVisualConfig.font)
+  const [responsiveVisualConfig, setResponsiveVisualConfig] = useState(() =>
+    getResponsiveVisualConfig(window.innerWidth, window.innerHeight),
+  )
+  const activeResponsivePresetRef = useRef<AppliedVisualPreset>(responsiveVisualConfig.appliedPreset)
+  const [background, setBackground] = useState<BackgroundMode>(responsiveVisualConfig.background)
+  const [font, setFont] = useState<FontMode>(responsiveVisualConfig.font)
   const shadowSourcePreview = useShadowSourcePreview()
   const timelineEvents = useDebugTimeline()
   const shadowCapability = useShadowCapability()
   const ShadowLayer = useAfterInteractiveShadowLayer(shadowCapability.enabled, version)
   const [shadowSettings, setShadowSettings] = useState<ShadowSettings>({
-    ...siteVisualConfig.shadowSettings,
+    ...responsiveVisualConfig.shadowSettings,
   })
   const [showShadowSource, setShowShadowSource] = useState(false)
-  const [shadowMapMode, setShadowMapMode] = useState<ShadowMapMode>(siteVisualConfig.shadowMapMode)
+  const [shadowMapMode, setShadowMapMode] = useState<ShadowMapMode>(responsiveVisualConfig.shadowMapMode)
   const [isDebugPanelCollapsed, setIsDebugPanelCollapsed] = useState(false)
   const [debugPanelTab, setDebugPanelTab] = useState<DebugPanelTab>('shadow')
   const [typeSettings, setTypeSettings] = useState<TypeSettings>({
-    ...siteVisualConfig.typeSettings,
+    ...responsiveVisualConfig.typeSettings,
   })
   const [textureSettings, setTextureSettings] = useState<TextureSettings>({
-    ...siteVisualConfig.textureSettings,
+    ...responsiveVisualConfig.textureSettings,
   })
   const backgroundMode = backgroundModes.find((mode) => mode.label === background) ?? backgroundModes[0]
   const fontMode = fontModes.find((mode) => mode.label === font) ?? fontModes[0]
@@ -1061,6 +1111,39 @@ function App() {
   useEffect(() => {
     emitDebugTimelineEvent('app mounted')
   }, [])
+
+  useEffect(() => {
+    let frameId = 0
+
+    const updateResponsiveConfig = () => {
+      cancelAnimationFrame(frameId)
+      frameId = requestAnimationFrame(() => {
+        setResponsiveVisualConfig(getResponsiveVisualConfig(window.innerWidth, window.innerHeight))
+      })
+    }
+
+    window.addEventListener('resize', updateResponsiveConfig)
+    return () => {
+      cancelAnimationFrame(frameId)
+      window.removeEventListener('resize', updateResponsiveConfig)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (activeResponsivePresetRef.current === responsiveVisualConfig.appliedPreset) return
+
+    activeResponsivePresetRef.current = responsiveVisualConfig.appliedPreset
+    setBackground(responsiveVisualConfig.background)
+    setFont(responsiveVisualConfig.font)
+    setShadowMapMode(responsiveVisualConfig.shadowMapMode)
+    setShadowSettings({ ...responsiveVisualConfig.shadowSettings })
+    setTextureSettings({ ...responsiveVisualConfig.textureSettings })
+    setTypeSettings({ ...responsiveVisualConfig.typeSettings })
+    emitDebugTimelineEvent(
+      'responsive preset',
+      `${responsiveVisualConfig.sizeClass} -> ${responsiveVisualConfig.appliedPreset}`,
+    )
+  }, [responsiveVisualConfig])
 
   useEffect(() => {
     emitDebugTimelineEvent(shadowCapability.enabled ? 'capability ok' : 'capability blocked', shadowCapability.reasons.join(', '))
@@ -1099,6 +1182,33 @@ function App() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [isDebug])
+
+  const logCurrentPreset = () => {
+    const width = window.innerWidth
+    const height = window.innerHeight
+    const aspect = width / Math.max(1, height)
+    const responsivePreset = getResponsiveVisualConfig(width, height)
+    const preset = {
+      appliedPreset: responsivePreset.appliedPreset,
+      suggestedPreset: responsivePreset.sizeClass,
+      viewport: {
+        aspect: Number(aspect.toFixed(3)),
+        devicePixelRatio: window.devicePixelRatio,
+        height,
+        width,
+      },
+      background,
+      font,
+      shadowMapMode,
+      shadowSettings,
+      textureSettings,
+      typeSettings,
+    }
+
+    console.info('[beneverman preset]', preset)
+    console.info(`[beneverman preset:${responsivePreset.sizeClass}] ${JSON.stringify(preset, null, 2)}`)
+    emitDebugTimelineEvent('preset logged', responsivePreset.sizeClass)
+  }
 
   return (
     <main
@@ -1172,6 +1282,7 @@ function App() {
           onBackgroundChange={setBackground}
           onChange={setShadowMapMode}
           onFontChange={setFont}
+          onLogPreset={logCurrentPreset}
           onPreviewPick={(samplerX, samplerY) => {
             if (!shadowSourcePreview) return
             setShadowSettings((currentSettings) => ({

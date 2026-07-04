@@ -47,6 +47,8 @@ const diskSize = 80
 const diskSamples = 100
 const minShadowCasterSize = 20
 const maxShadowCasterSize = 300
+const desktopShadowAspect = 16 / 9
+const desktopShadowDiagonalRatio = Math.hypot(desktopShadowAspect, 1) / desktopShadowAspect
 
 const shadowVertexShader = `
   varying vec2 vUv;
@@ -197,6 +199,10 @@ function getDensityCount(count: number, density: number) {
   return Math.max(1, Math.round(count * Math.max(0.1, density)))
 }
 
+function getShadowCompositionUnit(width: number, height: number) {
+  return Math.min(Math.hypot(width, height), width * desktopShadowDiagonalRatio)
+}
+
 function paintEllipse(
   context: CanvasRenderingContext2D,
   centerX: number,
@@ -328,7 +334,7 @@ function paintLeaf(
 }
 
 function paintBranchCanopy(context: CanvasRenderingContext2D, width: number, height: number, density: number, strength = 1) {
-  const diagonal = Math.hypot(width, height)
+  const shadowUnit = getShadowCompositionUnit(width, height)
   const source = createLeafLSystemSource(density)
   const toX = (x: number) => ((x + 1) * 0.5) * width
   const toY = (y: number) => (1 - (y + 1) * 0.5) * height
@@ -344,7 +350,7 @@ function paintBranchCanopy(context: CanvasRenderingContext2D, width: number, hei
       toY((segment.y1 + segment.y2) * 0.5),
       toX(segment.x2),
       toY(segment.y2),
-      diagonal * segment.thickness * 0.14,
+      shadowUnit * segment.thickness * 0.14,
       segment.depth * 0.52,
       strength,
     )
@@ -355,8 +361,8 @@ function paintBranchCanopy(context: CanvasRenderingContext2D, width: number, hei
       context,
       toX(leaf.x),
       toY(leaf.y),
-      diagonal * leaf.length * 0.42,
-      diagonal * leaf.width * 0.42,
+      shadowUnit * leaf.length * 0.42,
+      shadowUnit * leaf.width * 0.42,
       leaf.depth,
       -leaf.rotation,
       leaf.bend,
@@ -366,7 +372,7 @@ function paintBranchCanopy(context: CanvasRenderingContext2D, width: number, hei
 }
 
 function paintWindowScene(context: CanvasRenderingContext2D, width: number, height: number, density: number, strength = 1) {
-  const diagonal = Math.hypot(width, height)
+  const shadowUnit = getShadowCompositionUnit(width, height)
   const rotation = -0.13
   const slatCount = getDensityCount(10, density)
 
@@ -375,25 +381,25 @@ function paintWindowScene(context: CanvasRenderingContext2D, width: number, heig
     const seed = 720 + index * 19
     const y = height * (-0.06 + t * 1.12) + (stableNoise(seed) - 0.5) * height * 0.014
     const slatHeight = height * (0.012 + stableNoise(seed + 5) * 0.01)
-    const slatWidth = diagonal * (1.18 + stableNoise(seed + 11) * 0.16)
+    const slatWidth = shadowUnit * (1.18 + stableNoise(seed + 11) * 0.16)
     const x = width * (0.5 + (stableNoise(seed + 17) - 0.5) * 0.05)
     const depth = 0.36 + t * 0.42 + (stableNoise(seed + 23) - 0.5) * 0.16
 
     paintRect(context, x, y, slatWidth, slatHeight, depth, rotation + (stableNoise(seed + 29) - 0.5) * 0.03, strength)
   }
 
-  paintRect(context, width * 0.22, height * 0.48, width * 0.018, diagonal * 1.08, 0.38, rotation, strength)
-  paintRect(context, width * 0.78, height * 0.5, width * 0.014, diagonal * 1.04, 0.46, rotation, strength)
-  paintRect(context, width * 0.5, height * 0.08, diagonal * 1.18, height * 0.018, 0.5, rotation, strength)
+  paintRect(context, width * 0.22, height * 0.48, width * 0.018, shadowUnit * 1.08, 0.38, rotation, strength)
+  paintRect(context, width * 0.78, height * 0.5, width * 0.014, shadowUnit * 1.04, 0.46, rotation, strength)
+  paintRect(context, width * 0.5, height * 0.08, shadowUnit * 1.18, height * 0.018, 0.5, rotation, strength)
 }
 
 function paintPaperScene(context: CanvasRenderingContext2D, width: number, height: number, density: number) {
-  const diagonal = Math.hypot(width, height)
+  const shadowUnit = getShadowCompositionUnit(width, height)
 
-  paintRoundedRect(context, width * 0.2, height * 0.12, width * 0.88, height * 0.36, diagonal * 0.035, 0.38, -0.08)
-  paintRoundedRect(context, width * 0.82, height * 0.3, width * 0.66, height * 0.42, diagonal * 0.028, 0.54, 0.14)
-  paintRoundedRect(context, width * 0.24, height * 0.86, width * 0.78, height * 0.34, diagonal * 0.03, 0.7, 0.08)
-  paintRoundedRect(context, width * 0.88, height * 0.86, width * 0.46, height * 0.3, diagonal * 0.026, 0.46, -0.12)
+  paintRoundedRect(context, width * 0.2, height * 0.12, width * 0.88, height * 0.36, shadowUnit * 0.035, 0.38, -0.08)
+  paintRoundedRect(context, width * 0.82, height * 0.3, width * 0.66, height * 0.42, shadowUnit * 0.028, 0.54, 0.14)
+  paintRoundedRect(context, width * 0.24, height * 0.86, width * 0.78, height * 0.34, shadowUnit * 0.03, 0.7, 0.08)
+  paintRoundedRect(context, width * 0.88, height * 0.86, width * 0.46, height * 0.3, shadowUnit * 0.026, 0.46, -0.12)
 
   for (let index = 0; index < getDensityCount(5, density); index += 1) {
     const seed = 900 + index * 29
@@ -410,7 +416,7 @@ function paintPaperScene(context: CanvasRenderingContext2D, width: number, heigh
 }
 
 function paintBranchScene(context: CanvasRenderingContext2D, width: number, height: number, density: number) {
-  const diagonal = Math.hypot(width, height)
+  const shadowUnit = getShadowCompositionUnit(width, height)
   const branchDepths = [0.4, 0.58, 0.66, 0.5]
 
   branchDepths.slice(0, getDensityCount(branchDepths.length, density)).forEach((depth, index) => {
@@ -422,7 +428,7 @@ function paintBranchScene(context: CanvasRenderingContext2D, width: number, heig
     const controlX = width * (0.28 + stableNoise(seed + 23) * 0.42)
     const controlY = height * (-0.08 + index * 0.26 + stableNoise(seed + 29) * 0.28)
 
-    paintCurvedStroke(context, startX, startY, controlX, controlY, endX, endY, diagonal * (0.01 + index * 0.0025), depth)
+    paintCurvedStroke(context, startX, startY, controlX, controlY, endX, endY, shadowUnit * (0.01 + index * 0.0025), depth)
 
     for (let twig = 0; twig < getDensityCount(7, density); twig += 1) {
       const twigSeed = seed + twig * 13
@@ -430,7 +436,7 @@ function paintBranchScene(context: CanvasRenderingContext2D, width: number, heig
       const baseX = startX + (endX - startX) * t
       const baseY = startY + (endY - startY) * t + Math.sin(t * Math.PI) * (controlY - (startY + endY) * 0.5) * 0.7
       const side = twig % 2 === 0 ? -1 : 1
-      const twigLength = diagonal * (0.055 + stableNoise(twigSeed + 3) * 0.05)
+      const twigLength = shadowUnit * (0.055 + stableNoise(twigSeed + 3) * 0.05)
       const angle = -0.75 + side * (0.55 + stableNoise(twigSeed + 7) * 0.45)
 
       paintCurvedStroke(
@@ -441,7 +447,7 @@ function paintBranchScene(context: CanvasRenderingContext2D, width: number, heig
         baseY + Math.sin(angle) * twigLength * 0.6,
         baseX + Math.cos(angle) * twigLength,
         baseY + Math.sin(angle) * twigLength,
-        diagonal * 0.0045,
+        shadowUnit * 0.0045,
         Math.min(0.85, depth + stableNoise(twigSeed + 11) * 0.16),
       )
     }
@@ -453,8 +459,8 @@ function paintBranchScene(context: CanvasRenderingContext2D, width: number, heig
       context,
       width * (0.08 + stableNoise(seed) * 0.92),
       height * (0.06 + stableNoise(seed + 3) * 0.88),
-      diagonal * (0.025 + stableNoise(seed + 5) * 0.035),
-      diagonal * (0.008 + stableNoise(seed + 7) * 0.01),
+      shadowUnit * (0.025 + stableNoise(seed + 5) * 0.035),
+      shadowUnit * (0.008 + stableNoise(seed + 7) * 0.01),
       0.36 + stableNoise(seed + 11) * 0.42,
       -Math.PI + stableNoise(seed + 13) * Math.PI * 2,
       (stableNoise(seed + 17) - 0.5) * 0.18,
@@ -561,7 +567,7 @@ function createShadowTexture(mode: ShadowMapMode, width: number, height: number,
 
   if (mode === 'blobs') {
     const source = createBlobLSystemSource(settings.density)
-    const diagonal = Math.hypot(width, height)
+    const shadowUnit = getShadowCompositionUnit(width, height)
     const toX = (x: number) => ((x + 1) * 0.5) * width
     const toY = (y: number) => (1 - (y + 1) * 0.5) * height
 
@@ -570,8 +576,8 @@ function createShadowTexture(mode: ShadowMapMode, width: number, height: number,
         context,
         toX(blob.x),
         toY(blob.y),
-        diagonal * blob.radiusX * 0.42,
-        diagonal * blob.radiusY * 0.42,
+        shadowUnit * blob.radiusX * 0.42,
+        shadowUnit * blob.radiusY * 0.42,
         blob.depth,
         -blob.rotation,
       )
@@ -721,7 +727,11 @@ export default function DaylightShadowLayer({
   }, [])
 
   return (
-    <div className="daylight-shadow-layer" aria-hidden="true" style={{ opacity: isVisible ? settings.opacity : 0 }}>
+    <div
+      className={`daylight-shadow-layer ${isVisible ? 'is-visible' : ''}`}
+      aria-hidden="true"
+      style={{ ['--shadow-opacity' as string]: settings.opacity }}
+    >
       <Canvas
         camera={{ position: [0, 0, 1], near: 0.1, far: 10 }}
         dpr={[1, 1.5]}
