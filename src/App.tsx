@@ -49,6 +49,7 @@ type TextureSettings = {
 type DaylightShadowLayerComponent = ComponentType<{
   mode: ShadowMapMode
   settings: ShadowSettings
+  sunAngle: number
 }>
 
 type ShadowVersion = 'v1' | 'v2'
@@ -323,6 +324,40 @@ function getResponsiveVisualConfig(width: number, height: number) {
   }
 }
 
+function useAnimatedSunAngle(baseSunAngle: number) {
+  const [angleDelta, setAngleDelta] = useState(0)
+  const publishedDeltaRef = useRef(0)
+
+  useEffect(() => {
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (prefersReducedMotion) return
+
+    let frameId = 0
+    const startedAt = performance.now()
+
+    const animate = () => {
+      const elapsed = (performance.now() - startedAt) / 1000
+      const primaryDrift = Math.sin(elapsed * 0.18) * 2.25
+      const secondaryDrift = Math.sin(elapsed * 0.071 + 1.4) * 0.75
+      const nextDelta = primaryDrift + secondaryDrift
+
+      if (Math.abs(nextDelta - publishedDeltaRef.current) > 0.0008) {
+        publishedDeltaRef.current = nextDelta
+        setAngleDelta(nextDelta)
+      }
+      frameId = requestAnimationFrame(animate)
+    }
+
+    frameId = requestAnimationFrame(animate)
+
+    return () => {
+      cancelAnimationFrame(frameId)
+    }
+  }, [])
+
+  return baseSunAngle + angleDelta
+}
+
 function useAfterInteractiveShadowLayer(shouldLoad: boolean, version: ShadowVersion) {
   const [ShadowLayer, setShadowLayer] = useState<DaylightShadowLayerComponent | null>(null)
 
@@ -471,7 +506,12 @@ function createShader(gl: WebGLRenderingContext, type: number, source: string) {
 
 function BackgroundShader({ mode, sunAngle }: { mode: BackgroundModeConfig; sunAngle: number }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const sunAngleRef = useRef(sunAngle)
   const [isVisible, setIsVisible] = useState(false)
+
+  useEffect(() => {
+    sunAngleRef.current = sunAngle
+  }, [sunAngle])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -546,7 +586,7 @@ function BackgroundShader({ mode, sunAngle }: { mode: BackgroundModeConfig; sunA
       gl.uniform3fv(glowLocation, mode.shader.glow)
       gl.uniform3fv(coolLocation, mode.shader.cool)
       gl.uniform1f(glowStrengthLocation, mode.shader.glowStrength)
-      gl.uniform1f(sunAngleLocation, sunAngle)
+      gl.uniform1f(sunAngleLocation, sunAngleRef.current)
       gl.drawArrays(gl.TRIANGLES, 0, 6)
 
       frameId = requestAnimationFrame(render)
@@ -567,7 +607,7 @@ function BackgroundShader({ mode, sunAngle }: { mode: BackgroundModeConfig; sunA
       gl.deleteShader(vertexShader)
       gl.deleteShader(fragmentShader)
     }
-  }, [mode, sunAngle])
+  }, [mode])
 
   useEffect(() => {
     const frameId = requestAnimationFrame(() => setIsVisible(true))
@@ -1107,6 +1147,7 @@ function App() {
   })
   const backgroundMode = backgroundModes.find((mode) => mode.label === background) ?? backgroundModes[0]
   const fontMode = fontModes.find((mode) => mode.label === font) ?? fontModes[0]
+  const effectiveSunAngle = useAnimatedSunAngle(shadowSettings.sunAngle)
 
   useEffect(() => {
     document.documentElement.style.background = backgroundMode.color
@@ -1210,6 +1251,7 @@ function App() {
       background,
       font,
       shadowMapMode,
+      effectiveSunAngle: Number(effectiveSunAngle.toFixed(4)),
       shadowSettings,
       textureSettings,
       typeSettings,
@@ -1236,9 +1278,9 @@ function App() {
       }}
     >
       <div className="visual-scene-layer" aria-hidden="true">
-        <BackgroundShader mode={backgroundMode} sunAngle={shadowSettings.sunAngle} />
+        <BackgroundShader mode={backgroundMode} sunAngle={effectiveSunAngle} />
         {shadowCapability.enabled && ShadowLayer ? (
-          <ShadowLayer mode={shadowMapMode} settings={shadowSettings} />
+          <ShadowLayer mode={shadowMapMode} settings={shadowSettings} sunAngle={effectiveSunAngle} />
         ) : null}
       </div>
       <section className="intro" aria-label="About Ben Everman">
