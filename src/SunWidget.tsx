@@ -11,10 +11,28 @@ export type SunWidgetVariant = (typeof sunWidgetVariants)[number]
 
 const tau = Math.PI * 2
 
-type WidgetProps = { angle: number; moonAngle: number; moonFactor: number; sunFactor: number }
+type WidgetProps = {
+  angle: number
+  moonAngle: number
+  moonFactor: number
+  sunFactor: number
+  sunWarmth: number
+}
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max)
+}
+
+function smoothstepValue(edge0: number, edge1: number, x: number) {
+  const t = clamp((x - edge0) / (edge1 - edge0), 0, 1)
+  return t * t * (3 - 2 * t)
+}
+
+function mixRgbChannels(a: readonly [number, number, number], b: readonly [number, number, number], t: number) {
+  const r = Math.round(a[0] + (b[0] - a[0]) * t)
+  const g = Math.round(a[1] + (b[1] - a[1]) * t)
+  const bl = Math.round(a[2] + (b[2] - a[2]) * t)
+  return `${r}, ${g}, ${bl}`
 }
 
 // 1 above ~3.5 degrees of elevation, 0 a few degrees below the horizon, with a
@@ -37,10 +55,23 @@ function cubicBezier(t: number, p0: number, p1: number, p2: number, p3: number) 
   return u * u * u * p0 + 3 * u * u * t * p1 + 3 * u * t * t * p2 + t * t * t * p3
 }
 
-function SunDot({ opacity, x, y }: { opacity: number; x: number; y: number }) {
+// The dot's color follows the day phase: midday gold deepens toward sunset
+// orange as warmth goes 0 -> 1 near the horizons, glow included.
+function SunDot({ opacity, warmth, x, y }: { opacity: number; warmth: number; x: number; y: number }) {
+  const fill = mixRgbChannels([243, 180, 81], [233, 116, 50], warmth)
+  const stroke = mixRgbChannels([255, 193, 93], [255, 148, 72], warmth)
+  const glowInner = mixRgbChannels([255, 181, 82], [255, 132, 60], warmth)
+  const glowOuter = mixRgbChannels([255, 190, 105], [255, 148, 80], warmth)
+
   return (
-    <g className="sun-widget-dot" opacity={opacity}>
-      <circle cx={x} cy={y} r="2.1" />
+    <g
+      className="sun-widget-dot"
+      opacity={opacity}
+      style={{
+        filter: `drop-shadow(0 0 1.6px rgba(${glowInner}, 0.9)) drop-shadow(0 0 5px rgba(${glowOuter}, 0.45))`,
+      }}
+    >
+      <circle cx={x} cy={y} fill={`rgb(${fill})`} r="2.1" stroke={`rgb(${stroke})`} strokeWidth="0.5" />
     </g>
   )
 }
@@ -55,7 +86,7 @@ function MoonDot({ opacity, x, y }: { opacity: number; x: number; y: number }) {
 
 // A gnomon casting a shadow that swings and stretches opposite the sun. The
 // cot() shadow length blows up at the horizons, so it is clamped to the frame.
-function GnomonWidget({ angle, moonAngle, moonFactor, sunFactor }: WidgetProps) {
+function GnomonWidget({ angle, moonAngle, moonFactor, sunFactor, sunWarmth }: WidgetProps) {
   const clampedAngle = clamp(angle, 0, Math.PI)
   const clampedMoonAngle = clamp(moonAngle, 0, Math.PI)
   const sunShadow = getShadowFactor(angle)
@@ -80,14 +111,14 @@ function GnomonWidget({ angle, moonAngle, moonFactor, sunFactor }: WidgetProps) 
       />
       <line className="sun-widget-stick" x1="24" y1="26" x2="24" y2="15" />
       <MoonDot opacity={moonFactor} x={moonX} y={moonY} />
-      <SunDot opacity={sunFactor} x={sunX} y={sunY} />
+      <SunDot opacity={sunFactor} warmth={sunWarmth} x={sunX} y={sunY} />
     </svg>
   )
 }
 
 // The sun's dotted day-path over a horizon line; the dot is evaluated on the
 // same cubic bezier the track draws so it never floats off the stroke.
-function ArcWidget({ angle, moonAngle, moonFactor, sunFactor }: WidgetProps) {
+function ArcWidget({ angle, moonAngle, moonFactor, sunFactor, sunWarmth }: WidgetProps) {
   const t = 1 - clamp(angle, 0, Math.PI) / Math.PI
   const moonT = 1 - clamp(moonAngle, 0, Math.PI) / Math.PI
   const sunX = cubicBezier(t, 8, 16, 32, 40)
@@ -100,13 +131,13 @@ function ArcWidget({ angle, moonAngle, moonFactor, sunFactor }: WidgetProps) {
       <path className="sun-widget-track" d="M 8 25 C 16 8 32 8 40 25" />
       <line className="sun-widget-ground" x1="4" y1="25" x2="44" y2="25" />
       <MoonDot opacity={moonFactor} x={moonX} y={moonY} />
-      <SunDot opacity={sunFactor} x={sunX} y={sunY} />
+      <SunDot opacity={sunFactor} warmth={sunWarmth} x={sunX} y={sunY} />
     </svg>
   )
 }
 
 // A semicircular gauge where the amber stroke fills with elapsed daylight.
-function GaugeWidget({ angle, moonAngle, moonFactor, sunFactor }: WidgetProps) {
+function GaugeWidget({ angle, moonAngle, moonFactor, sunFactor, sunWarmth }: WidgetProps) {
   const clampedAngle = clamp(angle, 0, Math.PI)
   const clampedMoonAngle = clamp(moonAngle, 0, Math.PI)
   const progress = clampedAngle / Math.PI
@@ -128,14 +159,14 @@ function GaugeWidget({ angle, moonAngle, moonFactor, sunFactor }: WidgetProps) {
       <line className="sun-widget-ground" x1="2" y1="26" x2="9" y2="26" />
       <line className="sun-widget-ground" x1="39" y1="26" x2="46" y2="26" />
       <MoonDot opacity={moonFactor} x={moonX} y={moonY} />
-      <SunDot opacity={sunFactor} x={sunX} y={sunY} />
+      <SunDot opacity={sunFactor} warmth={sunWarmth} x={sunX} y={sunY} />
     </svg>
   )
 }
 
 // A literal angle glyph: horizon ray, sun ray, and a small amber arc between
 // them marking the measured elevation.
-function WedgeWidget({ angle, moonAngle, moonFactor, sunFactor }: WidgetProps) {
+function WedgeWidget({ angle, moonAngle, moonFactor, sunFactor, sunWarmth }: WidgetProps) {
   const clampedAngle = clamp(angle, 0, Math.PI)
   const clampedMoonAngle = clamp(moonAngle, 0, Math.PI)
   const rayX = 24 + Math.cos(clampedAngle) * 17
@@ -156,7 +187,7 @@ function WedgeWidget({ angle, moonAngle, moonFactor, sunFactor }: WidgetProps) {
       />
       <line className="sun-widget-needle" opacity={sunFactor} x1="24" y1="26" x2={rayX} y2={rayY} />
       <MoonDot opacity={moonFactor} x={moonX} y={moonY} />
-      <SunDot opacity={sunFactor} x={rayX} y={rayY} />
+      <SunDot opacity={sunFactor} warmth={sunWarmth} x={rayX} y={rayY} />
     </svg>
   )
 }
@@ -178,6 +209,7 @@ export function SunWidget({ angle, variant }: { angle: number; variant: SunWidge
       moonAngle={moonAngle}
       moonFactor={getSunFactor(moonAngle)}
       sunFactor={getSunFactor(normalized)}
+      sunWarmth={1 - smoothstepValue(0.1, 0.5, Math.sin(normalized))}
     />
   )
 }

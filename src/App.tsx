@@ -379,6 +379,20 @@ function cycleTimeAtSunAngle(angle: number) {
   return sunDayDurationSeconds + (Math.acos(1 - 2 * easedProgress) / Math.PI) * sunNightDurationSeconds
 }
 
+// Debug-slider parameterization: one 0..1 fraction scrubs the whole cycle,
+// displayed as a clock where the 170s day maps to 06:00-18:00 and the 60s
+// night to 18:00-06:00.
+function formatTimeOfDay(fraction: number) {
+  const cycleTime = fraction * sunCycleDurationSeconds
+  const hour =
+    cycleTime < sunDayDurationSeconds
+      ? 6 + (cycleTime / sunDayDurationSeconds) * 12
+      : (18 + ((cycleTime - sunDayDurationSeconds) / sunNightDurationSeconds) * 12) % 24
+  const wholeHour = Math.floor(hour)
+  const minutes = Math.floor((hour - wholeHour) * 60)
+  return `${String(wholeHour).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+}
+
 function useAnimatedSunAngle(baseSunAngle: number) {
   const [animatedAngle, setAnimatedAngle] = useState(baseSunAngle)
   const publishedAngleRef = useRef(baseSunAngle)
@@ -783,6 +797,8 @@ function DebugPanel({
   const finalTime = Math.max(1, events.at(-1)?.time ?? 1)
   const [shadowConfigTab, setShadowConfigTab] = useState<ShadowConfigTab>('scene')
   const [shadowLayerTab, setShadowLayerTab] = useState<ShadowLayerTab>('blinds')
+  const timeOfDayFraction =
+    cycleTimeAtSunAngle(Math.PI - settings.sunAngle) / sunCycleDurationSeconds
 
   return (
     <div className={`site-debug-panel debug-panel ${isCollapsed ? 'is-collapsed' : ''}`} aria-label="Debug controls">
@@ -913,15 +929,21 @@ function DebugPanel({
           />
         </label>
         <label>
-          <span>sun angle</span>
-          <span>{settings.sunAngle.toFixed(2)}</span>
+          <span>time of day</span>
+          <span>{formatTimeOfDay(timeOfDayFraction)}</span>
           <input
-            max="3.14"
-            min="-3.14"
-            onChange={(event) => onSettingsChange({ ...settings, sunAngle: Number(event.currentTarget.value) })}
-            step="0.02"
+            max="1"
+            min="0"
+            onChange={(event) =>
+              onSettingsChange({
+                ...settings,
+                sunAngle:
+                  Math.PI - sunAngleAtCycleTime(Number(event.currentTarget.value) * sunCycleDurationSeconds),
+              })
+            }
+            step="0.002"
             type="range"
-            value={settings.sunAngle}
+            value={timeOfDayFraction}
           />
         </label>
         <label>
