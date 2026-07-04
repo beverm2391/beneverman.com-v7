@@ -652,7 +652,7 @@ function useIdleShadowTexture(mode: ShadowMapMode, settings: ShadowSettings, wid
   return textureState
 }
 
-function ShadowShaderPlane({ mode, settings }: { mode: ShadowMapMode; settings: ShadowSettings }) {
+function ShadowShaderPlane({ mode, settings, sunAngle }: { mode: ShadowMapMode; settings: ShadowSettings; sunAngle: number }) {
   const { size } = useThree()
   const { height: textureHeight, width: textureWidth } = getShadowTextureSize(size.width, size.height, settings.resolution)
   const shadowTexture = useIdleShadowTexture(mode, settings, textureWidth, textureHeight)
@@ -686,7 +686,7 @@ function ShadowShaderPlane({ mode, settings }: { mode: ShadowMapMode; settings: 
     materialRef.current.uniforms.uLayerSpread.value = settings.layerSpread
     materialRef.current.uniforms.uSampleCount.value = settings.sampleCount
     materialRef.current.uniforms.uShadowContrast.value = settings.contrast
-    materialRef.current.uniforms.uSunAngle.value = settings.sunAngle
+    materialRef.current.uniforms.uSunAngle.value = sunAngle
     materialRef.current.uniforms.uWarpStrength.value = mode === 'window' ? 0 : 1
   })
 
@@ -711,9 +711,11 @@ function ShadowShaderPlane({ mode, settings }: { mode: ShadowMapMode; settings: 
 export default function DaylightShadowLayer({
   mode,
   settings,
+  sunAngle,
 }: {
   mode: ShadowMapMode
   settings: ShadowSettings
+  sunAngle: number
 }) {
   const [isVisible, setIsVisible] = useState(false)
 
@@ -740,7 +742,7 @@ export default function DaylightShadowLayer({
           gl.setClearColor(0xf2f0ee, 0)
         }}
       >
-        <ShadowShaderPlane mode={mode} settings={settings} />
+        <ShadowShaderPlane mode={mode} settings={settings} sunAngle={sunAngle} />
       </Canvas>
     </div>
   )

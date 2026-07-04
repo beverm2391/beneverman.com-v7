@@ -431,7 +431,7 @@ function createPreviewDataUrl(pixels: Uint8Array, width: number, height: number)
   }
 }
 
-function SourceSceneShadowPlane({ mode, settings }: { mode: ShadowMapMode; settings: ShadowSettings }) {
+function SourceSceneShadowPlane({ mode, settings, sunAngle }: { mode: ShadowMapMode; settings: ShadowSettings; sunAngle: number }) {
   const { gl, size } = useThree()
   const materialRef = useRef<THREE.ShaderMaterial>(null)
   const previewKeyRef = useRef('')
@@ -505,7 +505,7 @@ function SourceSceneShadowPlane({ mode, settings }: { mode: ShadowMapMode; setti
       materialRef.current.uniforms.uLayerSpread.value = settings.layerSpread
       materialRef.current.uniforms.uSampleCount.value = settings.sampleCount
       materialRef.current.uniforms.uShadowContrast.value = settings.contrast
-      materialRef.current.uniforms.uSunAngle.value = settings.sunAngle
+      materialRef.current.uniforms.uSunAngle.value = sunAngle
       materialRef.current.uniforms.uWarpStrength.value = mode === 'window' ? 0 : 1
     }
 
@@ -559,7 +559,7 @@ function SourceSceneShadowPlane({ mode, settings }: { mode: ShadowMapMode; setti
   )
 }
 
-export default function V2ShadowLayer({ mode, settings }: { mode: ShadowMapMode; settings: ShadowSettings }) {
+export default function V2ShadowLayer({ mode, settings, sunAngle }: { mode: ShadowMapMode; settings: ShadowSettings; sunAngle: number }) {
   const [isVisible, setIsVisible] = useState(false)
 
   useEffect(() => {
@@ -585,7 +585,7 @@ export default function V2ShadowLayer({ mode, settings }: { mode: ShadowMapMode;
           gl.setClearColor(0xf2f0ee, 0)
         }}
       >
-        <SourceSceneShadowPlane mode={mode} settings={settings} />
+        <SourceSceneShadowPlane mode={mode} settings={settings} sunAngle={sunAngle} />
       </Canvas>
     </div>
   )
