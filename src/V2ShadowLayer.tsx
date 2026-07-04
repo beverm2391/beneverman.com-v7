@@ -183,15 +183,28 @@ function makeCasterMaterial(depth: number, strength = 1) {
   })
 }
 
-// Rounded, slightly asymmetric leaf blob. At shadow blur the silhouette reads
-// as foliage texture; long pointed lenses read as fingers.
-function makeLeafGeometry() {
+// Parametric ovate leaf: base at (-1, 0), tip at (1, 0), widest at `widest`
+// with half-width `halfWidth`, and the lower side scaled by `asymmetry` so no
+// leaf is a perfect lens. This is the classic simple-leaf silhouette (elm,
+// birch, ficus) that survives shadow blur.
+function makeLeafGeometry(halfWidth: number, widest: number, asymmetry: number) {
   const shape = new THREE.Shape()
-  shape.moveTo(1, 0)
-  shape.bezierCurveTo(0.7, -0.78, -0.68, -0.85, -1, -0.08)
-  shape.bezierCurveTo(-0.7, 0.72, 0.68, 0.8, 1, 0)
+  shape.moveTo(-1, 0)
+  shape.bezierCurveTo(-0.92, halfWidth * 0.6, widest - 0.3, halfWidth, widest, halfWidth)
+  shape.bezierCurveTo(widest + 0.5, halfWidth * 0.85, 0.75, halfWidth * 0.25, 1, 0)
+  shape.bezierCurveTo(0.75, -halfWidth * 0.25 * asymmetry, widest + 0.5, -halfWidth * 0.85 * asymmetry, widest, -halfWidth * asymmetry)
+  shape.bezierCurveTo(widest - 0.3, -halfWidth * asymmetry, -0.92, -halfWidth * 0.6 * asymmetry, -1, 0)
 
   return new THREE.ShapeGeometry(shape, 18)
+}
+
+function makeLeafGeometryVariants() {
+  return [
+    makeLeafGeometry(0.34, -0.25, 0.92),
+    makeLeafGeometry(0.44, -0.12, 0.88),
+    makeLeafGeometry(0.28, -0.02, 0.95),
+    makeLeafGeometry(0.4, -0.32, 0.9),
+  ]
 }
 
 function addLeaf(parent: THREE.Object3D, geometry: THREE.BufferGeometry, x: number, y: number, length: number, width: number, depth: number, rotation: number, strength = 1) {
@@ -217,11 +230,62 @@ function addEllipse(scene: THREE.Scene, geometry: THREE.BufferGeometry, x: numbe
   scene.add(ellipse)
 }
 
+// A leaf spray: a short twig with alternating leaflets shrinking toward the
+// terminal leaf at the tip. Foliage shadows read as sprays attached to
+// structure, not as isolated leaves floating in space.
+function addSprig(
+  parent: THREE.Object3D,
+  leafGeometries: THREE.BufferGeometry[],
+  x: number,
+  y: number,
+  angle: number,
+  leafletSize: number,
+  depth: number,
+  strength: number,
+  seed: number,
+) {
+  const sprig = new THREE.Group()
+  sprig.position.set(x, y, 0)
+  sprig.rotation.z = angle
+
+  const leafletCount = 5 + Math.round(stableNoise(seed + 21) * 2)
+  const twigLength = leafletSize * leafletCount * 0.62
+
+  addRect(sprig, twigLength * 0.5, 0, twigLength, leafletSize * 0.09, Math.min(0.9, depth + 0.12), 0, strength)
+
+  for (let index = 0; index <= leafletCount; index += 1) {
+    const t = index / leafletCount
+    const isTerminal = index === leafletCount
+    const side = index % 2 === 0 ? 1 : -1
+    const leafletLength = leafletSize * (1.05 - t * 0.38) * (0.85 + stableNoise(seed + index * 7) * 0.3)
+    const leafletAngle = isTerminal
+      ? (stableNoise(seed + 90) - 0.5) * 0.3
+      : side * (0.78 + stableNoise(seed + index * 11) * 0.4)
+    const baseX = twigLength * (0.18 + t * 0.82)
+    const geometry =
+      leafGeometries[Math.floor(stableNoise(seed + index * 13) * leafGeometries.length) % leafGeometries.length]
+
+    addLeaf(
+      sprig,
+      geometry,
+      baseX + Math.cos(leafletAngle) * leafletLength,
+      Math.sin(leafletAngle) * leafletLength,
+      leafletLength,
+      leafletLength * (0.42 + stableNoise(seed + index * 17) * 0.14),
+      depth,
+      leafletAngle,
+      strength,
+    )
+  }
+
+  parent.add(sprig)
+}
+
 // Real canopy shadows read as connected foliage masses with light dappled
 // through gaps, not scattered individual leaves. Each clump is its own group
 // (anchored mostly along the top edge, hanging into view) so the wind can
 // sway them independently while the window blinds stay rigid.
-function addCanopy(scene: THREE.Scene, leafGeometry: THREE.BufferGeometry, settings: ShadowSettings, strength = 1) {
+function addCanopy(scene: THREE.Scene, leafGeometries: THREE.BufferGeometry[], settings: ShadowSettings, strength = 1) {
   const canopy = new THREE.Group()
   canopy.name = 'canopy'
 
@@ -252,31 +316,30 @@ function addCanopy(scene: THREE.Scene, leafGeometry: THREE.BufferGeometry, setti
       strength,
     )
 
-    const leafCount = getDensityCount(64, settings.density)
+    const sprigCount = getDensityCount(13, settings.density)
     const gapAngle = stableNoise(baseSeed + 1) * Math.PI * 2
 
-    for (let index = 0; index < leafCount; index += 1) {
-      const seed = baseSeed + index * 13
+    for (let index = 0; index < sprigCount; index += 1) {
+      const seed = baseSeed + index * 47
       // dense overlapping core, ragged rim
-      const radial = Math.pow(stableNoise(seed), 0.6) * clump.radius
+      const radial = Math.pow(stableNoise(seed), 0.55) * clump.radius
       const theta = stableNoise(seed + 3) * Math.PI * 2
       const rimFade = radial / clump.radius
       // dappled gap: thin one angular wedge outside the core so light punches
       // through the mass instead of the mass reading as a solid blob
       const gapDistance = Math.abs(((theta - gapAngle + Math.PI * 3) % (Math.PI * 2)) - Math.PI)
-      if (gapDistance < 0.52 && rimFade > 0.38 && stableNoise(seed + 5) < 0.7) continue
+      if (gapDistance < 0.5 && rimFade > 0.4 && stableNoise(seed + 5) < 0.65) continue
 
-      const length = (0.05 + (1 - rimFade) * 0.075 + stableNoise(seed + 7) * 0.03) * settings.scale
-      addLeaf(
+      addSprig(
         group,
-        leafGeometry,
+        leafGeometries,
         Math.cos(theta) * radial * 1.12,
         Math.sin(theta) * radial * 0.82,
-        length,
-        length * (0.6 + stableNoise(seed + 9) * 0.25),
+        theta + (stableNoise(seed + 7) - 0.5) * 1.4,
+        (0.042 + (1 - rimFade) * 0.045 + stableNoise(seed + 9) * 0.018) * settings.scale,
         0.32 + (1 - rimFade) * 0.2 + stableNoise(seed + 11) * 0.15,
-        stableNoise(seed + 13) * Math.PI * 2,
         strength,
+        seed,
       )
     }
 
@@ -358,16 +421,16 @@ function addBranch(scene: THREE.Scene, leafGeometry: THREE.BufferGeometry, setti
 
 function buildSourceScene(mode: ShadowMapMode, settings: ShadowSettings) {
   const scene = new THREE.Scene()
-  const leafGeometry = makeLeafGeometry()
+  const leafGeometries = makeLeafGeometryVariants()
   const ellipseGeometry = new THREE.CircleGeometry(1, 32)
 
-  if (mode === 'canopy') addCanopy(scene, leafGeometry, settings)
+  if (mode === 'canopy') addCanopy(scene, leafGeometries, settings)
   if (mode === 'window') addWindow(scene, settings)
   if (mode === 'paper') addPaper(scene, settings)
-  if (mode === 'branch') addBranch(scene, leafGeometry, settings)
+  if (mode === 'branch') addBranch(scene, leafGeometries[0], settings)
   if (mode === 'mixed') {
     addWindow(scene, settings, settings.blindStrength)
-    addCanopy(scene, leafGeometry, settings, settings.canopyStrength)
+    addCanopy(scene, leafGeometries, settings, settings.canopyStrength)
   }
   if (mode === 'blobs') {
     createBlobLSystemSource(settings.density).blobs.forEach((blob) => {
