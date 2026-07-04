@@ -2,7 +2,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { emitDebugTimelineEvent } from './debugTimeline'
-import { createBlobLSystemSource, createLeafLSystemSource } from './lSystemShadowSource'
+import { createBlobLSystemSource } from './lSystemShadowSource'
 import type { ShadowMapMode } from './shadowMapModes'
 import { publishShadowSourcePreview, type ShadowSourceSamplerPoint } from './shadowSourcePreview'
 
@@ -116,8 +116,8 @@ void main() {
   uv.y = 1.0 - uv.y;
   vec2 animatedUv = uv;
   float animatedTime = uTime * uAnimationSpeed;
-  animatedUv.x += sin(animatedTime * 0.24) * 0.028 * uAnimationStrength;
-  animatedUv.y += cos(animatedTime * 0.18) * 0.018 * uAnimationStrength;
+  animatedUv.x += sin(animatedTime * 0.24) * 0.028 * uAnimationStrength * uWarpStrength;
+  animatedUv.y += cos(animatedTime * 0.18) * 0.018 * uAnimationStrength * uWarpStrength;
   animatedUv.x += sin((uv.y * 5.5) + (animatedTime * 0.32)) * 0.008 * uAnimationStrength * uWarpStrength;
   animatedUv.y += cos((uv.x * 4.0) - (animatedTime * 0.26)) * 0.006 * uAnimationStrength * uWarpStrength;
   animatedUv.x += sin((uv.y * 12.0) - (animatedTime * 0.72)) * 0.0035 * uAnimationStrength * uWarpStrength;
@@ -192,19 +192,19 @@ function makeLeafGeometry() {
   return new THREE.ShapeGeometry(shape, 18)
 }
 
-function addLeaf(scene: THREE.Scene, geometry: THREE.BufferGeometry, x: number, y: number, length: number, width: number, depth: number, rotation: number, strength = 1) {
+function addLeaf(parent: THREE.Object3D, geometry: THREE.BufferGeometry, x: number, y: number, length: number, width: number, depth: number, rotation: number, strength = 1) {
   const leaf = new THREE.Mesh(geometry, makeCasterMaterial(depth, strength))
   leaf.position.set(x, y, 0)
   leaf.rotation.z = rotation
   leaf.scale.set(length, width, 1)
-  scene.add(leaf)
+  parent.add(leaf)
 }
 
-function addRect(scene: THREE.Scene, x: number, y: number, width: number, height: number, depth: number, rotation = 0, strength = 1) {
+function addRect(parent: THREE.Object3D, x: number, y: number, width: number, height: number, depth: number, rotation = 0, strength = 1) {
   const rect = new THREE.Mesh(new THREE.PlaneGeometry(width, height), makeCasterMaterial(depth, strength))
   rect.position.set(x, y, 0)
   rect.rotation.z = rotation
-  scene.add(rect)
+  parent.add(rect)
 }
 
 function addEllipse(scene: THREE.Scene, geometry: THREE.BufferGeometry, x: number, y: number, radiusX: number, radiusY: number, depth: number, rotation = 0, strength = 1) {
@@ -215,33 +215,73 @@ function addEllipse(scene: THREE.Scene, geometry: THREE.BufferGeometry, x: numbe
   scene.add(ellipse)
 }
 
+// Real canopy shadows read as connected foliage masses with light dappled
+// through gaps, not scattered individual leaves. Each clump is its own group
+// (anchored mostly along the top edge, hanging into view) so the wind can
+// sway them independently while the window blinds stay rigid.
 function addCanopy(scene: THREE.Scene, leafGeometry: THREE.BufferGeometry, settings: ShadowSettings, strength = 1) {
-  const source = createLeafLSystemSource(settings.density)
+  const canopy = new THREE.Group()
+  canopy.name = 'canopy'
 
-  source.segments.forEach((segment, index) => {
-    if (index % 13 !== 0) return
+  const clumps = [
+    { radius: 0.62, tilt: -0.42, x: -0.72, y: 0.92 },
+    { radius: 0.52, tilt: 0.24, x: -0.02, y: 1.04 },
+    { radius: 0.46, tilt: 0.72, x: 0.68, y: 0.86 },
+    { radius: 0.4, tilt: -1.08, x: -1.02, y: 0.18 },
+  ]
 
-    const x = (segment.x1 + segment.x2) * 0.5
-    const y = (segment.y1 + segment.y2) * 0.5
-    const width = Math.hypot(segment.x2 - segment.x1, segment.y2 - segment.y1) * settings.scale
-    const rotation = Math.atan2(segment.y2 - segment.y1, segment.x2 - segment.x1)
+  clumps.forEach((clump, clumpIndex) => {
+    const group = new THREE.Group()
+    group.position.set(clump.x, clump.y, 0)
+    group.userData = { baseX: clump.x, baseY: clump.y, phase: clumpIndex * 1.7 }
 
-    addRect(scene, x, y, width, segment.thickness * settings.scale * 0.34, segment.depth * 0.52, rotation, strength)
-  })
+    const baseSeed = 4200 + clumpIndex * 733
 
-  source.leaves.forEach((leaf) => {
-    addLeaf(
-      scene,
-      leafGeometry,
-      leaf.x,
-      leaf.y,
-      leaf.length * settings.scale,
-      leaf.width * settings.scale,
-      leaf.depth,
-      leaf.rotation,
+    // supporting branches running through the mass
+    addRect(group, 0, 0, clump.radius * 1.7 * settings.scale, 0.02 * settings.scale, 0.5, clump.tilt, strength)
+    addRect(
+      group,
+      Math.cos(clump.tilt + 0.9) * clump.radius * 0.4,
+      Math.sin(clump.tilt + 0.9) * clump.radius * 0.4,
+      clump.radius * 0.9 * settings.scale,
+      0.013 * settings.scale,
+      0.44,
+      clump.tilt + 0.9,
       strength,
     )
+
+    const leafCount = getDensityCount(64, settings.density)
+    const gapAngle = stableNoise(baseSeed + 1) * Math.PI * 2
+
+    for (let index = 0; index < leafCount; index += 1) {
+      const seed = baseSeed + index * 13
+      // dense overlapping core, ragged rim
+      const radial = Math.pow(stableNoise(seed), 0.6) * clump.radius
+      const theta = stableNoise(seed + 3) * Math.PI * 2
+      const rimFade = radial / clump.radius
+      // dappled gap: thin one angular wedge outside the core so light punches
+      // through the mass instead of the mass reading as a solid blob
+      const gapDistance = Math.abs(((theta - gapAngle + Math.PI * 3) % (Math.PI * 2)) - Math.PI)
+      if (gapDistance < 0.52 && rimFade > 0.38 && stableNoise(seed + 5) < 0.7) continue
+
+      const length = (0.06 + (1 - rimFade) * 0.085 + stableNoise(seed + 7) * 0.035) * settings.scale
+      addLeaf(
+        group,
+        leafGeometry,
+        Math.cos(theta) * radial * 1.12,
+        Math.sin(theta) * radial * 0.82,
+        length,
+        length * (0.34 + stableNoise(seed + 9) * 0.16),
+        0.32 + (1 - rimFade) * 0.2 + stableNoise(seed + 11) * 0.15,
+        theta + Math.PI / 2 + (stableNoise(seed + 13) - 0.5) * 0.9,
+        strength,
+      )
+    }
+
+    canopy.add(group)
   })
+
+  scene.add(canopy)
 }
 
 function addWindow(scene: THREE.Scene, settings: ShadowSettings, strength = 1) {
@@ -468,7 +508,9 @@ function SourceSceneShadowPlane({ crispnessScale, mode, settings, shadowTint, su
       uSunAngle: { value: settings.sunAngle },
       uTexture: { value: renderTarget.texture },
       uTime: { value: 0 },
-      uWarpStrength: { value: mode === 'window' ? 0 : 1 },
+      // mixed gets zero texture warp: the blinds must stay rigid, and the
+      // canopy's motion comes from real mesh animation in useFrame instead
+      uWarpStrength: { value: mode === 'window' || mode === 'mixed' ? 0 : 1 },
       wSize: { value: textureWidth },
     }),
     [mode, renderTarget.texture, settings.contrast, settings.crispness, settings.depthMix, settings.layerSpread, settings.sampleCount, settings.speed, settings.strength, settings.sunAngle, textureHeight, textureWidth],
@@ -488,9 +530,25 @@ function SourceSceneShadowPlane({ crispnessScale, mode, settings, shadowTint, su
 
   useFrame(({ clock }) => {
     const animatedTime = clock.elapsedTime * settings.speed
-    sourceScene.position.x = Math.sin(animatedTime * 0.16) * 0.035 * settings.strength
-    sourceScene.position.y = Math.cos(animatedTime * 0.12) * 0.025 * settings.strength
-    sourceScene.rotation.z = Math.sin(animatedTime * 0.08) * 0.018 * settings.strength
+    const canopyGroup = sourceScene.getObjectByName('canopy')
+
+    if (canopyGroup) {
+      // Hierarchical wind: each foliage clump sways with its own phase --
+      // slow large motion plus a faster small flutter -- while everything
+      // else in the scene (window blinds, frame) stays rigid.
+      for (const clump of canopyGroup.children) {
+        const { baseX, baseY, phase } = clump.userData
+        clump.rotation.z =
+          Math.sin(animatedTime * 0.32 + phase) * 0.024 * settings.strength +
+          Math.sin(animatedTime * 0.86 + phase * 2.3) * 0.009 * settings.strength
+        clump.position.x = baseX + Math.sin(animatedTime * 0.21 + phase) * 0.016 * settings.strength
+        clump.position.y = baseY + Math.cos(animatedTime * 0.27 + phase * 1.4) * 0.009 * settings.strength
+      }
+    } else {
+      sourceScene.position.x = Math.sin(animatedTime * 0.16) * 0.035 * settings.strength
+      sourceScene.position.y = Math.cos(animatedTime * 0.12) * 0.025 * settings.strength
+      sourceScene.rotation.z = Math.sin(animatedTime * 0.08) * 0.018 * settings.strength
+    }
 
     gl.setRenderTarget(renderTarget)
     gl.setClearColor(0x000000, 1)
@@ -509,7 +567,7 @@ function SourceSceneShadowPlane({ crispnessScale, mode, settings, shadowTint, su
       materialRef.current.uniforms.uShadowContrast.value = settings.contrast
       materialRef.current.uniforms.uShadowTint.value = shadowTint
       materialRef.current.uniforms.uSunAngle.value = sunAngle
-      materialRef.current.uniforms.uWarpStrength.value = mode === 'window' ? 0 : 1
+      materialRef.current.uniforms.uWarpStrength.value = mode === 'window' || mode === 'mixed' ? 0 : 1
     }
 
     const previewKey = [
@@ -562,7 +620,11 @@ function SourceSceneShadowPlane({ crispnessScale, mode, settings, shadowTint, su
   )
 }
 
-export default function V2ShadowLayer({ crispnessScale, mode, settings, shadowTint, sunAngle }: { crispnessScale: number; mode: ShadowMapMode; settings: ShadowSettings; shadowTint: readonly [number, number, number]; sunAngle: number }) {
+// opacityScale is a separate prop (not folded into settings.opacity) so the
+// per-frame day-cycle fade cannot change the settings object's identity --
+// buildSourceScene memoizes on it and would rebuild the THREE scene every
+// frame otherwise.
+export default function V2ShadowLayer({ crispnessScale, mode, opacityScale, settings, shadowTint, sunAngle }: { crispnessScale: number; mode: ShadowMapMode; opacityScale: number; settings: ShadowSettings; shadowTint: readonly [number, number, number]; sunAngle: number }) {
   const [isVisible, setIsVisible] = useState(false)
 
   useEffect(() => {
@@ -578,7 +640,7 @@ export default function V2ShadowLayer({ crispnessScale, mode, settings, shadowTi
     <div
       className={`daylight-shadow-layer ${isVisible ? 'is-visible' : ''}`}
       aria-hidden="true"
-      style={{ ['--shadow-opacity' as string]: settings.opacity }}
+      style={{ ['--shadow-opacity' as string]: settings.opacity * opacityScale }}
     >
       <Canvas
         camera={{ position: [0, 0, 1], near: 0.1, far: 10 }}
