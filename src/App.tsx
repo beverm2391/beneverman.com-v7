@@ -70,6 +70,7 @@ type ShadowLayerComponent = ComponentType<{
   sunAngle: number
 }>
 
+type ShadowVersion = 'v1' | 'v2'
 type DebugPanelTab = 'shadow' | 'type' | 'logs'
 type ShadowConfigTab = 'scene' | 'layers'
 type ShadowLayerTab = 'blinds' | 'canopy'
@@ -290,6 +291,25 @@ function useShadowCapability() {
   return capability
 }
 
+// v2 (THREE source scene) is the site default; v1 (canvas texture layer) is
+// kept reachable at /v1 for comparison.
+function getCurrentVersion(): ShadowVersion {
+  return window.location.pathname.startsWith('/v1') ? 'v1' : 'v2'
+}
+
+function useCurrentVersion() {
+  const [version, setVersion] = useState<ShadowVersion>(() => getCurrentVersion())
+
+  useEffect(() => {
+    const handlePopState = () => setVersion(getCurrentVersion())
+
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
+
+  return version
+}
+
 function getVisualSizeClass(width: number, height: number): VisualSizeClass {
   const aspect = width / Math.max(1, height)
 
@@ -415,7 +435,7 @@ function useAnimatedSunAngle(baseSunAngle: number) {
   return animatedAngle
 }
 
-function useAfterInteractiveShadowLayer(shouldLoad: boolean) {
+function useAfterInteractiveShadowLayer(shouldLoad: boolean, version: ShadowVersion) {
   const [ShadowLayer, setShadowLayer] = useState<ShadowLayerComponent | null>(null)
 
   useEffect(() => {
@@ -429,10 +449,13 @@ function useAfterInteractiveShadowLayer(shouldLoad: boolean) {
     let isCancelled = false
 
     const loadShadowLayer = () => {
-      emitDebugTimelineEvent('chunk requested')
-      void import('./V2ShadowLayer').then((module) => {
+      emitDebugTimelineEvent('chunk requested', version)
+      const layerModule =
+        version === 'v1' ? import('./DaylightShadowLayer') : import('./V2ShadowLayer')
+
+      void layerModule.then((module) => {
         if (isCancelled) return
-        emitDebugTimelineEvent('chunk loaded')
+        emitDebugTimelineEvent('chunk loaded', version)
         setShadowLayer(() => module.default)
       })
     }
@@ -447,7 +470,7 @@ function useAfterInteractiveShadowLayer(shouldLoad: boolean) {
     return () => {
       isCancelled = true
     }
-  }, [shouldLoad])
+  }, [shouldLoad, version])
 
   return ShadowLayer
 }
@@ -1239,6 +1262,7 @@ function DebugPanel({
 
 function App() {
   const isDebug = useDebugMode()
+  const version = useCurrentVersion()
   const isSunIconLab = window.location.pathname.startsWith('/sun-icon')
   useDeferredFontStylesheet(isDebug)
   const [responsiveVisualConfig, setResponsiveVisualConfig] = useState(() =>
@@ -1250,7 +1274,7 @@ function App() {
   const shadowSourcePreview = useShadowSourcePreview()
   const timelineEvents = useDebugTimeline()
   const shadowCapability = useShadowCapability()
-  const ShadowLayer = useAfterInteractiveShadowLayer(shadowCapability.enabled && !isSunIconLab)
+  const ShadowLayer = useAfterInteractiveShadowLayer(shadowCapability.enabled && !isSunIconLab, version)
   const [shadowSettings, setShadowSettings] = useState<ShadowSettings>({
     ...responsiveVisualConfig.shadowSettings,
   })
