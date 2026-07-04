@@ -427,13 +427,23 @@ const backgroundFragmentShader = `
     vec2 centered = vec2((uv.x - 0.5) * aspect, uv.y - 0.5);
     float halfSpan = length(vec2(aspect, 1.0)) * 0.5;
     float directionalLight = dot(centered, sunDirection) / halfSpan;
-    float sunMix = smoothstep(-0.46, 0.56, directionalLight + (broadNoise - 0.5) * 0.16);
-    float sunGlow = smoothstep(0.28, 1.0, directionalLight + (paperNoise - 0.5) * 0.08);
+    float portraitScale = 1.0 - smoothstep(0.55, 1.25, aspect);
+    float shapedLight = directionalLight - portraitScale * 0.18;
+    float sunMix = smoothstep(
+      mix(-0.46, 0.04, portraitScale),
+      mix(0.56, 0.86, portraitScale),
+      shapedLight + (broadNoise - 0.5) * mix(0.16, 0.1, portraitScale)
+    );
+    float sunGlow = smoothstep(
+      mix(0.28, 0.55, portraitScale),
+      1.0,
+      shapedLight + (paperNoise - 0.5) * 0.08
+    );
 
     vec3 paperSide = mix(uBase, vec3(0.985, 0.965, 0.925), 0.46);
     vec3 sunSide = mix(uGlow, vec3(1.0, 0.82, 0.5), 0.24);
     vec3 color = mix(paperSide, sunSide, sunMix);
-    color = mix(color, uGlow, sunGlow * uGlowStrength);
+    color = mix(color, uGlow, sunGlow * uGlowStrength * mix(1.0, 0.68, portraitScale));
     color = mix(color, uCool, (1.0 - sunMix) * smoothstep(0.36, 0.86, broadNoise) * 0.12);
 
     color += (paperNoise - 0.5) * 0.035;
