@@ -432,7 +432,7 @@ function createPreviewDataUrl(pixels: Uint8Array, width: number, height: number)
   }
 }
 
-function SourceSceneShadowPlane({ mode, settings, shadowTint, sunAngle }: { mode: ShadowMapMode; settings: ShadowSettings; shadowTint: readonly [number, number, number]; sunAngle: number }) {
+function SourceSceneShadowPlane({ crispnessScale, mode, settings, shadowTint, sunAngle }: { crispnessScale: number; mode: ShadowMapMode; settings: ShadowSettings; shadowTint: readonly [number, number, number]; sunAngle: number }) {
   const { gl, size } = useThree()
   const materialRef = useRef<THREE.ShaderMaterial>(null)
   const previewKeyRef = useRef('')
@@ -503,7 +503,7 @@ function SourceSceneShadowPlane({ mode, settings, shadowTint, sunAngle }: { mode
       materialRef.current.uniforms.uAnimationSpeed.value = settings.speed
       materialRef.current.uniforms.uAnimationStrength.value = settings.strength
       materialRef.current.uniforms.uDepthMix.value = settings.depthMix
-      materialRef.current.uniforms.uEdgeCrispness.value = settings.crispness
+      materialRef.current.uniforms.uEdgeCrispness.value = settings.crispness * crispnessScale
       materialRef.current.uniforms.uLayerSpread.value = settings.layerSpread
       materialRef.current.uniforms.uSampleCount.value = settings.sampleCount
       materialRef.current.uniforms.uShadowContrast.value = settings.contrast
@@ -562,7 +562,7 @@ function SourceSceneShadowPlane({ mode, settings, shadowTint, sunAngle }: { mode
   )
 }
 
-export default function V2ShadowLayer({ mode, settings, shadowTint, sunAngle }: { mode: ShadowMapMode; settings: ShadowSettings; shadowTint: readonly [number, number, number]; sunAngle: number }) {
+export default function V2ShadowLayer({ crispnessScale, mode, settings, shadowTint, sunAngle }: { crispnessScale: number; mode: ShadowMapMode; settings: ShadowSettings; shadowTint: readonly [number, number, number]; sunAngle: number }) {
   const [isVisible, setIsVisible] = useState(false)
 
   useEffect(() => {
@@ -588,7 +588,7 @@ export default function V2ShadowLayer({ mode, settings, shadowTint, sunAngle }: 
           gl.setClearColor(0xf2f0ee, 0)
         }}
       >
-        <SourceSceneShadowPlane mode={mode} settings={settings} shadowTint={shadowTint} sunAngle={sunAngle} />
+        <SourceSceneShadowPlane crispnessScale={crispnessScale} mode={mode} settings={settings} shadowTint={shadowTint} sunAngle={sunAngle} />
       </Canvas>
     </div>
   )

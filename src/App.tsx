@@ -62,6 +62,7 @@ type TextureSettings = {
 }
 
 type DaylightShadowLayerComponent = ComponentType<{
+  crispnessScale: number
   mode: ShadowMapMode
   settings: ShadowSettings
   shadowTint: Vec3
@@ -1308,6 +1309,13 @@ function App() {
     mixVec3([0.05, 0.05, 0.06], [0.26, 0.14, 0.05], goldenHour),
     daylight,
   )
+  // Shadow edge softness follows the active light's elevation: hardest at
+  // noon, soft near the horizons where light crosses more atmosphere, and
+  // softer still under moonlight so night shadows read as dapple, not crisp
+  // unexplained shadows. Applied as a multiplier on the configured crispness.
+  const lightElevation = Math.sin(shadowLightAngle)
+  const shadowCrispnessScale =
+    (0.45 + 0.55 * smoothstep(0.05, 0.6, lightElevation)) * (0.55 + 0.45 * daylight)
 
   useEffect(() => {
     document.documentElement.style.background = backgroundMode.color
@@ -1450,6 +1458,7 @@ function App() {
         />
         {shadowCapability.enabled && ShadowLayer ? (
           <ShadowLayer
+            crispnessScale={shadowCrispnessScale}
             mode={shadowMapMode}
             settings={{ ...shadowSettings, opacity: shadowSettings.opacity * shadowFactor }}
             shadowTint={shadowTint}

@@ -653,7 +653,7 @@ function useIdleShadowTexture(mode: ShadowMapMode, settings: ShadowSettings, wid
   return textureState
 }
 
-function ShadowShaderPlane({ mode, settings, shadowTint, sunAngle }: { mode: ShadowMapMode; settings: ShadowSettings; shadowTint: readonly [number, number, number]; sunAngle: number }) {
+function ShadowShaderPlane({ crispnessScale, mode, settings, shadowTint, sunAngle }: { crispnessScale: number; mode: ShadowMapMode; settings: ShadowSettings; shadowTint: readonly [number, number, number]; sunAngle: number }) {
   const { size } = useThree()
   const { height: textureHeight, width: textureWidth } = getShadowTextureSize(size.width, size.height, settings.resolution)
   const shadowTexture = useIdleShadowTexture(mode, settings, textureWidth, textureHeight)
@@ -684,7 +684,7 @@ function ShadowShaderPlane({ mode, settings, shadowTint, sunAngle }: { mode: Sha
     materialRef.current.uniforms.uAnimationSpeed.value = settings.speed
     materialRef.current.uniforms.uAnimationStrength.value = settings.strength
     materialRef.current.uniforms.uDepthMix.value = settings.depthMix
-    materialRef.current.uniforms.uEdgeCrispness.value = settings.crispness
+    materialRef.current.uniforms.uEdgeCrispness.value = settings.crispness * crispnessScale
     materialRef.current.uniforms.uLayerSpread.value = settings.layerSpread
     materialRef.current.uniforms.uSampleCount.value = settings.sampleCount
     materialRef.current.uniforms.uShadowContrast.value = settings.contrast
@@ -712,11 +712,13 @@ function ShadowShaderPlane({ mode, settings, shadowTint, sunAngle }: { mode: Sha
 }
 
 export default function DaylightShadowLayer({
+  crispnessScale,
   mode,
   settings,
   shadowTint,
   sunAngle,
 }: {
+  crispnessScale: number
   mode: ShadowMapMode
   settings: ShadowSettings
   shadowTint: readonly [number, number, number]
@@ -747,7 +749,7 @@ export default function DaylightShadowLayer({
           gl.setClearColor(0xf2f0ee, 0)
         }}
       >
-        <ShadowShaderPlane mode={mode} settings={settings} shadowTint={shadowTint} sunAngle={sunAngle} />
+        <ShadowShaderPlane crispnessScale={crispnessScale} mode={mode} settings={settings} shadowTint={shadowTint} sunAngle={sunAngle} />
       </Canvas>
     </div>
   )
