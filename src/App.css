@@ -82,10 +82,46 @@
   letter-spacing: var(--intro-letter-spacing, 0);
 }
 
+.intro a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+  transition: none;
+}
+
 .name {
   margin-top: 0;
   margin-bottom: 1.15rem;
   font-weight: 400;
+}
+
+.inspiration-footer {
+  position: fixed;
+  left: clamp(1.25rem, 3vw, 2.5rem);
+  bottom: clamp(1rem, 2.5vw, 2rem);
+  z-index: 2;
+  color: rgba(23, 23, 23, 0.46);
+  font-family: var(--intro-font-family, var(--sans));
+  font-size: 0.72rem;
+  font-weight: 300;
+  letter-spacing: 0;
+  line-height: 1.45;
+}
+
+.inspiration-footer a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+  transition: none !important;
+}
+
+.inspiration-footer a:hover,
+.inspiration-footer a:focus,
+.inspiration-footer a:active {
+  color: inherit;
+  transition: none !important;
 }
 
 .debug-panel {

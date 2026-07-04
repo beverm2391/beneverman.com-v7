@@ -1124,17 +1124,41 @@ function App() {
       <section className="intro" aria-label="About Ben Everman">
         <p className="name">Ben Everman</p>
         <p>
-          I'm currently working at Tekmir, where we're building an end-to-end platform for mass-action
-          litigation.
+          I'm currently working as a software engineer at Tekmir, where we're building an end-to-end
+          platform for mass-action litigation.
         </p>
         <p>
-          In my free time, I like to work on technical projects, like training neural nets, AI automation,
-          and building full stack apps.
+          In my free time, I like to work on technical projects like LLM inference optimization, model
+          interpretability, shaders, AI tooling, and the like.
         </p>
         <p>
           On any given day, you can probably find me working at one of my favorite coffee shops in Atlanta.
         </p>
+        <p>
+          Most of my experiments are colocated under{' '}
+          <a href="https://www.bencorp.dev/" rel="noreferrer" target="_blank">
+            BENCORP
+          </a>,
+          {' '}my fake company; source code is on my{' '}
+          <a href="https://www.github.com/beverm2391" rel="noreferrer" target="_blank">
+            GitHub
+          </a>;
+          {' '}feel free to reach out to me on{' '}
+          <a href="https://www.x.com/beneverman" rel="noreferrer" target="_blank">
+            X
+          </a>.
+        </p>
       </section>
+      <footer className="inspiration-footer">
+        shaders inspired by{' '}
+        <a href="https://basement.studio/" rel="noreferrer" target="_blank">
+          Basement Studio
+        </a>{' '}
+        and{' '}
+        <a href="https://farayan.me/" rel="noreferrer" target="_blank">
+          Fara Yan
+        </a>
+      </footer>
       {isDebug ? (
         <DebugPanel
           activeTab={debugPanelTab}

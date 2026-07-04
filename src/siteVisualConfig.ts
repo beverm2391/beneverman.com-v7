@@ -27,10 +27,10 @@ export const siteVisualConfig = {
     scale: 200,
   },
   typeSettings: {
-    lineHeight: 1.5,
-    size: 1,
+    lineHeight: 1.55,
+    size: 1.02,
     tracking: 0,
     weight: 300,
-    width: 33,
+    width: 35,
   },
 } as const
