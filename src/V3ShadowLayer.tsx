@@ -1,9 +1,9 @@
-import { SoftShadows } from '@react-three/drei'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { emitDebugTimelineEvent } from './debugTimeline'
+import { PcssSoftShadows } from './PcssSoftShadows'
 import {
   canopyClumps,
   getDensityCount,
@@ -41,6 +41,24 @@ type ShadowSettings = {
 const tau = Math.PI * 2
 const zAxis = new THREE.Vector3(0, 0, 1)
 const unitPlane = new THREE.PlaneGeometry(1, 1)
+
+// Light-space half-extent of the shadow frustum. Casters span x ~[-1.95, 1.95]
+// and project slightly wider under a tilted light; 2.6 covers the worst case
+// with margin. Keep this and the camera args below in sync.
+const shadowFrustum = 2.6
+
+// Size the shadow map to the device instead of hardcoding: aim for roughly one
+// texel per rendered pixel across the frustum, snapped to a power of two. A
+// phone lands at 1024-2048 (cheap), a 2x desktop at 4096 (sharp). The penumbra
+// floor in PcssSoftShadows hides the texel grid either way, so undershooting
+// on weak devices degrades to "slightly softer", never to staircase edges.
+function pickShadowMapSize(viewportWidth: number, dpr: number) {
+  const pixelsPerWorldUnit = (viewportWidth / 2) * dpr
+  const wanted = shadowFrustum * 2 * pixelsPerWorldUnit
+  let mapSize = 1024
+  while (mapSize < wanted && mapSize < 4096) mapSize *= 2
+  return mapSize
+}
 
 // Distance from the receiving page plane. PCSS penumbra grows with this, so
 // the v2 "depth" values translate directly into physical z separation.
@@ -215,9 +233,14 @@ function V3Scene({
   shadowTint: readonly [number, number, number]
   sunAngle: number
 }) {
-  const { camera, size } = useThree()
+  const { camera, size, viewport } = useThree()
   const lightRef = useRef<THREE.DirectionalLight>(null)
   const shadowMaterialRef = useRef<THREE.ShadowMaterial>(null)
+
+  const shadowMapSize = pickShadowMapSize(size.width, viewport.dpr)
+  // fewer PCSS taps on narrow (mobile) viewports; the smaller shadow map there
+  // needs less filtering to look continuous anyway
+  const pcssSamples = size.width < 700 ? 10 : 16
 
   const foliage = useMemo(() => {
     const leafGeometries = makeLeafGeometryVariants()
@@ -277,20 +300,30 @@ function V3Scene({
 
   return (
     <>
-      <SoftShadows focus={0.4} samples={16} size={Math.max(6, 52 / Math.max(0.5, settings.crispness))} />
+      <PcssSoftShadows
+        focus={0.4}
+        minTexels={2.5}
+        samples={pcssSamples}
+        size={Math.max(6, 52 / Math.max(0.5, settings.crispness))}
+      />
+      {/* key remounts the light when the map size tier changes (rotation,
+          window resize) so the old shadow map texture is actually disposed */}
       <directionalLight
         castShadow
         intensity={1}
+        key={shadowMapSize}
         ref={lightRef}
         shadow-bias={-0.0004}
-        shadow-camera-bottom={-2.6}
-        shadow-camera-far={14}
-        shadow-camera-left={-2.6}
-        shadow-camera-near={0.5}
-        shadow-camera-right={2.6}
-        shadow-camera-top={2.6}
-        shadow-mapSize={[2048, 2048]}
-      />
+        shadow-mapSize={[shadowMapSize, shadowMapSize]}
+      >
+        {/* frustum must go through constructor args: mutating shadow-camera-*
+            props never triggers updateProjectionMatrix, leaving the default
+            +-5 frustum and ~4x coarser shadow texels than intended */}
+        <orthographicCamera
+          args={[-shadowFrustum, shadowFrustum, shadowFrustum, -shadowFrustum, 0.5, 14]}
+          attach="shadow-camera"
+        />
+      </directionalLight>
       <primitive object={foliage} />
       <mesh receiveShadow>
         <planeGeometry args={[10, 10]} />
