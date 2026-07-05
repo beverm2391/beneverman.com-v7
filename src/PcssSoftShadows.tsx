@@ -3,15 +3,18 @@ import { useEffect } from 'react'
 import * as THREE from 'three'
 
 // Vendored from @react-three/drei's <SoftShadows> (PCSS by N8Programs et al,
-// Vogel disk + per-pixel noise rotation) with one structural change borrowed
-// from basement.studio's Daylight shadow writeup: a minimum filter radius.
+// Vogel disk + per-pixel noise rotation) with two structural changes:
 //
-// Stock PCSS scales the filter disk purely by penumbraRatio, so casters that
-// nearly touch the receiver (our window blinds at z=0.06) get a ~1-texel disk
-// and the raw shadow-map texel grid shows through as staircase edges on every
-// diagonal. Flooring the disk at a few texels guarantees each edge at least
-// that much noise-dithered penumbra, which is what makes the result look
-// resolution-independent regardless of shadow map size or device.
+// 1. Minimum filter radius (basement.studio's Daylight minSize trick). Stock
+//    PCSS scales the filter disk purely by penumbraRatio, so casters that
+//    nearly touch the receiver (our window blinds at z=0.06) get a ~1-texel
+//    disk and the raw shadow-map texel grid shows through as staircase edges.
+//    Flooring the disk guarantees every edge a few texels of noise-dithered
+//    penumbra regardless of shadow map size or device.
+// 2. Bilinear depth comparison per filter tap, so shadow edge positions are
+//    continuous instead of quantized to the texel grid -- without it, long
+//    straight casters render with a one-texel ripple that dithering only
+//    softens, never straightens.
 
 const pcss = ({ focus = 0, size = 25, samples = 10, minTexels = 2.5 } = {}) => /* glsl */ `
 #define PENUMBRA_FILTER_SIZE float(${size})
@@ -82,6 +85,24 @@ float findBlocker(sampler2D shadowMap, vec2 uv, float compare, float angle) {
   return -1.0;
 }
 
+// Bilinear-filtered depth comparison (the old three.js texture2DShadowLerp).
+// A nearest-texel step() quantizes the shadow edge position to the map grid,
+// which reads as wavy/stepped lines on long straight casters like blinds;
+// interpolating the four neighboring comparisons makes the edge position
+// continuous at sub-texel precision.
+float depthCompareBilinear(sampler2D shadowMap, vec2 uv, float compare) {
+  vec2 res = vec2(textureSize(shadowMap, 0));
+  vec2 texel = 1.0 / res;
+  vec2 grid = uv * res - 0.5;
+  vec2 f = fract(grid);
+  vec2 base = (floor(grid) + 0.5) * texel;
+  float bl = step(compare, unpackRGBAToDepth(texture2D(shadowMap, base)));
+  float br = step(compare, unpackRGBAToDepth(texture2D(shadowMap, base + vec2(texel.x, 0.0))));
+  float tl = step(compare, unpackRGBAToDepth(texture2D(shadowMap, base + vec2(0.0, texel.y))));
+  float tr = step(compare, unpackRGBAToDepth(texture2D(shadowMap, base + texel)));
+  return mix(mix(bl, br, f.x), mix(tl, tr, f.x), f.y);
+}
+
 float vogelFilter(sampler2D shadowMap, vec2 uv, float zReceiver, float filterTexels, float angle) {
   float texelSize = 1.0 / float(textureSize(shadowMap, 0).x);
   float shadow = 0.0f;
@@ -92,7 +113,7 @@ float vogelFilter(sampler2D shadowMap, vec2 uv, float zReceiver, float filterTex
   for (int i = 0; i < ${samples}; i++) {
     vogelSample = vogelDiskSample(j, ${samples}, angle) * texelSize;
     offset = vogelSample * filterTexels;
-    shadow += step( zReceiver, unpackRGBAToDepth( texture2D( shadowMap, uv + offset ) ) );
+    shadow += depthCompareBilinear( shadowMap, uv + offset, zReceiver );
     j++;
   }
   #pragma unroll_loop_end
