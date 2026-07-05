@@ -1,9 +1,9 @@
-import { useThree } from '@react-three/fiber'
+import { useFrame, useThree } from '@react-three/fiber'
 import { useEffect } from 'react'
 import * as THREE from 'three'
 
 // Vendored from @react-three/drei's <SoftShadows> (PCSS by N8Programs et al,
-// Vogel disk + per-pixel noise rotation) with two structural changes:
+// Vogel disk + per-pixel noise rotation) with three structural changes:
 //
 // 1. Minimum filter radius (basement.studio's Daylight minSize trick). Stock
 //    PCSS scales the filter disk purely by penumbraRatio, so casters that
@@ -15,9 +15,34 @@ import * as THREE from 'three'
 //    continuous instead of quantized to the texel grid -- without it, long
 //    straight casters render with a one-texel ripple that dithering only
 //    softens, never straightens.
+// 3. size / focus / minTexels are uniforms instead of baked constants. drei
+//    recompiles every material through a global ShaderChunk swap on each prop
+//    change, which hitches and proved fragile across vite HMR (stale patched
+//    chunks made slider changes silently no-op). Uniforms update per frame
+//    with no recompile, which also lets the day cycle animate edge softness.
+//    Only the sample count stays compile-time (it sizes unrolled loops).
 
-const pcss = ({ focus = 0, size = 25, samples = 10, minTexels = 2.5 } = {}) => /* glsl */ `
-#define PENUMBRA_FILTER_SIZE float(${size})
+// Shared uniform objects: the receiver material binds these via
+// bindPcssUniforms, and <PcssSoftShadows> writes prop values into them each
+// frame. Module-level singleton is fine -- there is one shadow canvas.
+export const pcssUniforms = {
+  pcssFocus: { value: 0 },
+  pcssMinTexels: { value: 2.5 },
+  pcssSize: { value: 25 },
+}
+
+// Set as onBeforeCompile on every material that should receive PCSS shadows.
+// Kept module-level so its identity (and the program cache key derived from
+// its source) stays stable across renders.
+export function bindPcssUniforms(shader: { uniforms: Record<string, { value: unknown }> }) {
+  Object.assign(shader.uniforms, pcssUniforms)
+}
+
+const pcss = ({ samples = 10 } = {}) => /* glsl */ `
+uniform float pcssFocus;
+uniform float pcssMinTexels;
+uniform float pcssSize;
+
 #define RGB_NOISE_FUNCTION(uv) (randRGB(uv))
 vec3 randRGB(vec2 uv) {
   return vec3(
@@ -60,7 +85,7 @@ float penumbraSize( const in float zReceiver, const in float zBlocker ) { // Par
 }
 float findBlocker(sampler2D shadowMap, vec2 uv, float compare, float angle) {
   float texelSize = 1.0 / float(textureSize(shadowMap, 0).x);
-  float blockerDepthSum = float(${focus});
+  float blockerDepthSum = pcssFocus;
   float blockers = 0.0;
 
   int j = 0;
@@ -69,7 +94,7 @@ float findBlocker(sampler2D shadowMap, vec2 uv, float compare, float angle) {
 
   #pragma unroll_loop_start
   for(int i = 0; i < ${samples}; i ++) {
-    offset = (vogelDiskSample(j, ${samples}, angle) * texelSize) * 2.0 * PENUMBRA_FILTER_SIZE;
+    offset = (vogelDiskSample(j, ${samples}, angle) * texelSize) * 2.0 * pcssSize;
     depth = unpackRGBAToDepth( texture2D( shadowMap, uv + offset));
     if (depth < compare) {
       blockerDepthSum += depth;
@@ -129,9 +154,9 @@ float PCSS (sampler2D shadowMap, vec4 coords) {
     return 1.0;
   }
   float penumbraRatio = penumbraSize(zReceiver, avgBlockerDepth);
-  // the max() is the whole point of this vendored copy: never let the filter
-  // disk collapse below a few texels or edges quantize to the shadow map grid
-  float filterTexels = max(1.25 * penumbraRatio * PENUMBRA_FILTER_SIZE, float(${minTexels}));
+  // the max() keeps the filter disk from collapsing below a few texels, so
+  // edges never quantize to the shadow map grid
+  float filterTexels = max(1.25 * penumbraRatio * pcssSize, pcssMinTexels);
   return vogelFilter(shadowMap, uv, zReceiver, filterTexels, angle);
 }`
 
@@ -165,7 +190,7 @@ export function PcssSoftShadows({
   useEffect(() => {
     const original = THREE.ShaderChunk.shadowmap_pars_fragment
     THREE.ShaderChunk.shadowmap_pars_fragment = THREE.ShaderChunk.shadowmap_pars_fragment
-      .replace('#ifdef USE_SHADOWMAP', '#ifdef USE_SHADOWMAP\n' + pcss({ focus, minTexels, samples, size }))
+      .replace('#ifdef USE_SHADOWMAP', '#ifdef USE_SHADOWMAP\n' + pcss({ samples }))
       .replace(
         '#if defined( SHADOWMAP_TYPE_PCF )',
         '\nreturn PCSS(shadowMap, shadowCoord);\n#if defined( SHADOWMAP_TYPE_PCF )',
@@ -175,7 +200,13 @@ export function PcssSoftShadows({
       THREE.ShaderChunk.shadowmap_pars_fragment = original
       reset(gl, scene, camera)
     }
-  }, [camera, focus, gl, minTexels, samples, scene, size])
+  }, [camera, gl, samples, scene])
+
+  useFrame(() => {
+    pcssUniforms.pcssFocus.value = focus
+    pcssUniforms.pcssMinTexels.value = minTexels
+    pcssUniforms.pcssSize.value = size
+  })
 
   return null
 }

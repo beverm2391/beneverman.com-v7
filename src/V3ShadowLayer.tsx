@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { emitDebugTimelineEvent } from './debugTimeline'
-import { PcssSoftShadows } from './PcssSoftShadows'
+import { bindPcssUniforms, PcssSoftShadows } from './PcssSoftShadows'
 import {
   canopyClumps,
   getDensityCount,
@@ -223,11 +223,13 @@ function buildWindowGroup(settings: ShadowSettings, casterMaterial: THREE.Materi
 }
 
 function V3Scene({
+  crispnessScale,
   mode,
   settings,
   shadowTint,
   sunAngle,
 }: {
+  crispnessScale: number
   mode: ShadowMapMode
   settings: ShadowSettings
   shadowTint: readonly [number, number, number]
@@ -303,12 +305,14 @@ function V3Scene({
       {/* crispness drives both softness knobs: size sets how fast penumbra
           grows with caster distance (far foliage), minTexels sets the base
           edge blur that near-plane casters (blinds) bottom out at. At the
-          config default of 3 the floor lands at 2.5 texels. */}
+          config default of 3 the floor lands at 2.5 texels. crispnessScale is
+          the day cycle softening edges toward the horizons -- these land in
+          uniforms, so per-frame animation costs nothing. */}
       <PcssSoftShadows
         focus={0.4}
-        minTexels={Math.min(8, Math.max(1.25, 7.5 / Math.max(0.5, settings.crispness)))}
+        minTexels={Math.min(8, Math.max(1.25, 7.5 / Math.max(0.5, settings.crispness * crispnessScale)))}
         samples={pcssSamples}
-        size={Math.max(6, 52 / Math.max(0.5, settings.crispness))}
+        size={Math.max(6, 52 / Math.max(0.5, settings.crispness * crispnessScale))}
       />
       {/* key remounts the light when the map size tier changes (rotation,
           window resize) so the old shadow map texture is actually disposed */}
@@ -331,7 +335,7 @@ function V3Scene({
       <primitive object={foliage} />
       <mesh receiveShadow>
         <planeGeometry args={[10, 10]} />
-        <shadowMaterial ref={shadowMaterialRef} transparent />
+        <shadowMaterial onBeforeCompile={bindPcssUniforms} ref={shadowMaterialRef} transparent />
       </mesh>
     </>
   )
@@ -363,11 +367,6 @@ export default function V3ShadowLayer({
     return () => cancelAnimationFrame(frameId)
   }, [])
 
-  // crispnessScale (day-cycle edge softening) is intentionally unused here:
-  // PCSS penumbra already grows physically with caster distance, and animating
-  // the SoftShadows light size would recompile shaders every frame.
-  void crispnessScale
-
   return (
     <div
       className={`daylight-shadow-layer ${isVisible ? 'is-visible' : ''}`}
@@ -384,7 +383,13 @@ export default function V3ShadowLayer({
         orthographic
         shadows
       >
-        <V3Scene mode={mode} settings={settings} shadowTint={shadowTint} sunAngle={sunAngle} />
+        <V3Scene
+          crispnessScale={crispnessScale}
+          mode={mode}
+          settings={settings}
+          shadowTint={shadowTint}
+          sunAngle={sunAngle}
+        />
       </Canvas>
     </div>
   )

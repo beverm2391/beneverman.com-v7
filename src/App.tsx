@@ -779,6 +779,7 @@ function DebugPanel({
   sunWidget,
   textureSettings,
   typeSettings,
+  version,
 }: {
   activeTab: DebugPanelTab
   background: BackgroundMode
@@ -804,12 +805,17 @@ function DebugPanel({
   sunWidget: SunWidgetChoice
   textureSettings: TextureSettings
   typeSettings: TypeSettings
+  version: ShadowVersion
 }) {
   const finalTime = Math.max(1, events.at(-1)?.time ?? 1)
   const [shadowConfigTab, setShadowConfigTab] = useState<ShadowConfigTab>('scene')
   const [shadowLayerTab, setShadowLayerTab] = useState<ShadowLayerTab>('blinds')
   const timeOfDayFraction =
     cycleTimeAtSunAngle(Math.PI - settings.sunAngle) / sunCycleDurationSeconds
+  // v3 replaces the v2 caster-map shader with a real PCSS light, so the
+  // sampler-era controls (depth encoding, blur taps, map resolution, per-layer
+  // strengths, source preview) have nothing to drive there
+  const isPcss = version === 'v3'
 
   return (
     <div className={`site-debug-panel debug-panel ${isCollapsed ? 'is-collapsed' : ''}`} aria-label="Debug controls">
@@ -867,14 +873,16 @@ function DebugPanel({
           </button>
         ))}
       </div>
-      <div className="shadow-map-buttons shadow-config-tabs" aria-label="Shadow config sections">
-        {(['scene', 'layers'] as const).map((tab) => (
-          <button aria-pressed={shadowConfigTab === tab} key={tab} onClick={() => setShadowConfigTab(tab)} type="button">
-            {tab}
-          </button>
-        ))}
-      </div>
-      {shadowConfigTab === 'scene' ? (
+      {isPcss ? null : (
+        <div className="shadow-map-buttons shadow-config-tabs" aria-label="Shadow config sections">
+          {(['scene', 'layers'] as const).map((tab) => (
+            <button aria-pressed={shadowConfigTab === tab} key={tab} onClick={() => setShadowConfigTab(tab)} type="button">
+              {tab}
+            </button>
+          ))}
+        </div>
+      )}
+      {shadowConfigTab === 'scene' || isPcss ? (
         <>
       <div className="shadow-animation-controls">
         <label>
@@ -903,6 +911,8 @@ function DebugPanel({
         </label>
       </div>
       <div className="shadow-animation-controls">
+        {isPcss ? null : (
+          <>
         <label>
           <span>depth mix</span>
           <span>{settings.depthMix.toFixed(2)}</span>
@@ -927,6 +937,8 @@ function DebugPanel({
             value={settings.layerSpread}
           />
         </label>
+          </>
+        )}
         <label>
           <span>speed</span>
           <span>{settings.speed.toFixed(2)}</span>
@@ -973,7 +985,7 @@ function DebugPanel({
           <span>crispness</span>
           <span>{settings.crispness.toFixed(2)}</span>
           <input
-            max="3"
+            max={isPcss ? '6' : '3'}
             min="0.45"
             onChange={(event) => onSettingsChange({ ...settings, crispness: Number(event.currentTarget.value) })}
             step="0.05"
@@ -993,6 +1005,7 @@ function DebugPanel({
             value={settings.opacity}
           />
         </label>
+        {isPcss ? null : (
         <label>
           <span>contrast</span>
           <span>{settings.contrast.toFixed(2)}</span>
@@ -1005,6 +1018,7 @@ function DebugPanel({
             value={settings.contrast}
           />
         </label>
+        )}
         <label>
           <span>source scale</span>
           <span>{settings.scale.toFixed(2)}</span>
@@ -1029,6 +1043,8 @@ function DebugPanel({
             value={settings.density}
           />
         </label>
+        {isPcss ? null : (
+          <>
         <label>
           <span>samples</span>
           <span>{Math.round(settings.sampleCount)}</span>
@@ -1053,6 +1069,8 @@ function DebugPanel({
             value={settings.resolution}
           />
         </label>
+          </>
+        )}
       </div>
         </>
       ) : null}
@@ -1097,7 +1115,7 @@ function DebugPanel({
           </div>
         </>
       ) : null}
-      {showPreview ? (
+      {showPreview && !isPcss ? (
         <div className="shadow-source-preview" aria-label="Shadow source preview">
           <div>
             <span>source</span>
@@ -1548,6 +1566,7 @@ function App() {
           sunWidget={sunWidget}
           textureSettings={textureSettings}
           typeSettings={typeSettings}
+          version={version}
         />
       ) : null}
       <div className="surface-texture" aria-hidden="true" />
