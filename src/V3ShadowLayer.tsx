@@ -3,7 +3,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { emitDebugTimelineEvent } from './debugTimeline'
-import { bindPcssUniforms, PcssSoftShadows } from './PcssSoftShadows'
 import {
   canopyClumps,
   getDensityCount,
@@ -14,10 +13,13 @@ import {
 import type { ShadowMapMode } from './shadowMapModes'
 
 // v3: physically-based shadows. A real DirectionalLight shadow-maps the oak
-// foliage onto a ShadowMaterial page plane, with drei's SoftShadows (PCSS)
-// providing contact-hardening: penumbra grows with each caster's distance
-// from the plane, so near leaves are razor sharp and far clumps melt soft --
-// per leaf, continuously, instead of the v2 caster-size disk encoding.
+// foliage onto a ShadowMaterial page plane using three r185's native soft PCF
+// (5 Vogel-disk samples x hardware 4-tap bilinear compare, noise-rotated per
+// pixel). Edge softness is light.shadow.radius -- a per-frame uniform driven
+// from the crispness setting and the day cycle, no shader hacks, no
+// recompiles. (drei's <SoftShadows> PCSS injection silently no-ops on r185's
+// restructured shadow chunk + program cache; we shipped it for a while and it
+// was provably never in the compiled shader.)
 
 type ShadowSettings = {
   blindStrength: number
@@ -240,9 +242,6 @@ function V3Scene({
   const shadowMaterialRef = useRef<THREE.ShadowMaterial>(null)
 
   const shadowMapSize = pickShadowMapSize(size.width, viewport.dpr)
-  // fewer PCSS taps on narrow (mobile) viewports; the smaller shadow map there
-  // needs less filtering to look continuous anyway
-  const pcssSamples = size.width < 700 ? 10 : 16
 
   const foliage = useMemo(() => {
     const leafGeometries = makeLeafGeometryVariants()
@@ -298,22 +297,21 @@ function V3Scene({
     // displacement and stretch follow the day physically
     lightRef.current?.position.set(Math.cos(sunAngle) * 3.5, Math.sin(sunAngle) * 3.5, 6.5)
     shadowMaterialRef.current?.color.setRGB(shadowTint[0], shadowTint[1], shadowTint[2])
+
+    if (lightRef.current) {
+      // edge softness: the native PCF filter disk radius in shadow-map texels.
+      // crispness is the user knob, crispnessScale the day cycle (edges harden
+      // toward noon, soften toward the horizons). It's a struct uniform, so
+      // animating it per frame is free -- no recompile.
+      lightRef.current.shadow.radius = Math.min(
+        30,
+        Math.max(1, 7.5 / Math.max(0.2, settings.crispness * crispnessScale)),
+      )
+    }
   })
 
   return (
     <>
-      {/* crispness drives both softness knobs: size sets how fast penumbra
-          grows with caster distance (far foliage), minTexels sets the base
-          edge blur that near-plane casters (blinds) bottom out at. At the
-          config default of 3 the floor lands at 2.5 texels. crispnessScale is
-          the day cycle softening edges toward the horizons -- these land in
-          uniforms, so per-frame animation costs nothing. */}
-      <PcssSoftShadows
-        focus={0.4}
-        minTexels={Math.min(8, Math.max(1.25, 7.5 / Math.max(0.5, settings.crispness * crispnessScale)))}
-        samples={pcssSamples}
-        size={Math.max(6, 52 / Math.max(0.5, settings.crispness * crispnessScale))}
-      />
       {/* key remounts the light when the map size tier changes (rotation,
           window resize) so the old shadow map texture is actually disposed */}
       <directionalLight
@@ -335,7 +333,7 @@ function V3Scene({
       <primitive object={foliage} />
       <mesh receiveShadow>
         <planeGeometry args={[10, 10]} />
-        <shadowMaterial onBeforeCompile={bindPcssUniforms} ref={shadowMaterialRef} transparent />
+        <shadowMaterial ref={shadowMaterialRef} transparent />
       </mesh>
     </>
   )
@@ -373,6 +371,9 @@ export default function V3ShadowLayer({
       aria-hidden="true"
       style={{ ['--shadow-opacity' as string]: settings.opacity * opacityScale }}
     >
+      {/* shadows="percentage" = plain PCF: r185 deprecated PCFSoftShadowMap
+          (native PCF is already soft -- Vogel disk + hardware bilinear) and
+          asking for it warns every frame */}
       <Canvas
         camera={{ far: 30, near: 0.1, position: [0, 0, 10] }}
         dpr={[1, 1.5]}
@@ -381,7 +382,7 @@ export default function V3ShadowLayer({
           gl.setClearColor(0x000000, 0)
         }}
         orthographic
-        shadows
+        shadows="percentage"
       >
         <V3Scene
           crispnessScale={crispnessScale}
