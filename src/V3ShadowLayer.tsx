@@ -300,9 +300,13 @@ function V3Scene({
 
   return (
     <>
+      {/* crispness drives both softness knobs: size sets how fast penumbra
+          grows with caster distance (far foliage), minTexels sets the base
+          edge blur that near-plane casters (blinds) bottom out at. At the
+          config default of 3 the floor lands at 2.5 texels. */}
       <PcssSoftShadows
         focus={0.4}
-        minTexels={2.5}
+        minTexels={Math.min(8, Math.max(1.25, 7.5 / Math.max(0.5, settings.crispness)))}
         samples={pcssSamples}
         size={Math.max(6, 52 / Math.max(0.5, settings.crispness))}
       />
