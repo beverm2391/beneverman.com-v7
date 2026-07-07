@@ -99,10 +99,12 @@ export function getWindowRects(density: number, scale: number): WindowRectSpec[]
     rects.push({
       depth: 0.36 + t * 0.42 + (stableNoise(seed + 23) - 0.5) * 0.16,
       height: (0.026 + stableNoise(seed + 5) * 0.022) * scale,
-      rotation: rotation + (stableNoise(seed + 29) - 0.5) * 0.03,
+      // slats must share one rotation: per-slat angle jitter makes lines
+      // converge/kink across the viewport, which crisp rendering exposes
+      rotation,
       width: (2.66 + stableNoise(seed + 11) * 0.36) * scale,
       x: (stableNoise(seed + 17) - 0.5) * 0.08,
-      y: 1.08 - t * 2.16 + (stableNoise(seed) - 0.5) * 0.032,
+      y: 1.08 - t * 2.16 + (stableNoise(seed) - 0.5) * 0.016,
     })
   }
 
