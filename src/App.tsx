@@ -7,6 +7,11 @@ import {
   type DebugTimelineEvent,
 } from './debugTimeline'
 import { shadowMapModes, type ShadowMapMode } from './shadowMapModes'
+import {
+  getShadowSourcePreview,
+  subscribeShadowSourcePreview,
+  type ShadowSourcePreview,
+} from './shadowSourcePreview'
 import { siteVisualConfig } from './siteVisualConfig'
 import { SunIconLab } from './SunIconLab'
 import { getShadowFactor, SunWidget, sunWidgetVariants, type SunWidgetVariant } from './SunWidget'
@@ -62,6 +67,7 @@ type ShadowLayerComponent = ComponentType<{
   opacityScale: number
   settings: ShadowSettings
   shadowTint: Vec3
+  showSource?: boolean
   sunAngle: number
 }>
 
@@ -402,6 +408,14 @@ function useAnimatedSunAngle(baseSunAngle: number) {
   return animatedAngle
 }
 
+function useShadowSourcePreview() {
+  const [preview, setPreview] = useState<ShadowSourcePreview | null>(() => getShadowSourcePreview())
+
+  useEffect(() => subscribeShadowSourcePreview(setPreview), [])
+
+  return preview
+}
+
 function useAfterInteractiveShadowLayer(shouldLoad: boolean) {
   const [ShadowLayer, setShadowLayer] = useState<ShadowLayerComponent | null>(null)
 
@@ -725,12 +739,15 @@ function DebugPanel({
   onChange,
   onFontChange,
   onLogPreset,
+  onPreviewPick,
   onSettingsChange,
   onSunWidgetChange,
   onTextureSettingsChange,
   onToggleCollapsed,
   onTypeSettingsChange,
+  preview,
   settings,
+  showPreview,
   sunWidget,
   textureSettings,
   typeSettings,
@@ -747,12 +764,15 @@ function DebugPanel({
   onChange: (mode: ShadowMapMode) => void
   onFontChange: (font: FontMode) => void
   onLogPreset: () => void
+  onPreviewPick: (x: number, y: number) => void
   onSettingsChange: (settings: ShadowSettings) => void
   onSunWidgetChange: (widget: SunWidgetChoice) => void
   onTextureSettingsChange: (settings: TextureSettings) => void
   onToggleCollapsed: () => void
   onTypeSettingsChange: (settings: TypeSettings) => void
+  preview: ShadowSourcePreview | null
   settings: ShadowSettings
+  showPreview: boolean
   sunWidget: SunWidgetChoice
   textureSettings: TextureSettings
   typeSettings: TypeSettings
@@ -1049,6 +1069,79 @@ function DebugPanel({
           </div>
         </>
       ) : null}
+      {showPreview ? (
+        <div className="shadow-source-preview" aria-label="Shadow source preview">
+          <div>
+            <span>source</span>
+            <span>
+              {preview ? `${preview.mode} ${preview.width}x${preview.height}` : 'waiting'}
+            </span>
+          </div>
+          {preview?.dataUrl ? (
+            <button
+              aria-label="Move shadow sampler"
+              className="shadow-source-frame"
+              onClick={(event) => {
+                const rect = event.currentTarget.getBoundingClientRect()
+                const x = ((event.clientX - rect.left) / rect.width) * preview.width
+                const y = ((event.clientY - rect.top) / rect.height) * preview.height
+
+                onPreviewPick(x, y)
+              }}
+              style={{ aspectRatio: `${preview.width} / ${preview.height}` }}
+              type="button"
+            >
+              <img alt="" src={preview.dataUrl} />
+              {preview.sampler ? (
+                <>
+                  <span
+                    className="shadow-sampler-probe"
+                    style={{
+                      left: `${(preview.sampler.sampleX / preview.width) * 100}%`,
+                      top: `${(preview.sampler.sampleY / preview.height) * 100}%`,
+                    }}
+                  />
+                  {preview.sampler.points.map((point, index) => {
+                    const sampleSize = point.hitCaster
+                      ? `${Math.max(0.55, (point.casterSize / preview.width) * 100)}%`
+                      : '0.35rem'
+
+                    return (
+                      <span
+                        className={[
+                          'shadow-sampler-point',
+                          point.hitCaster ? 'is-hit' : '',
+                          point.contributes ? 'is-contributing' : '',
+                        ]
+                          .filter(Boolean)
+                          .join(' ')}
+                        key={`${point.x}-${point.y}-${index}`}
+                        style={{
+                          height: sampleSize,
+                          left: `${(point.x / preview.width) * 100}%`,
+                          top: `${(point.y / preview.height) * 100}%`,
+                          width: sampleSize,
+                        }}
+                      />
+                    )
+                  })}
+                </>
+              ) : null}
+            </button>
+          ) : (
+            <div className="shadow-source-empty" />
+          )}
+          {preview?.sampler ? (
+            <div className="shadow-sampler-readout">
+              <span>probe</span>
+              <span>
+                {preview.sampler.contributingSamples}/{preview.sampler.points.length} samples ·{' '}
+                {preview.sampler.shadowFactor.toFixed(2)}
+              </span>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
         </>
       ) : null}
       {activeTab === 'type' ? (
@@ -1149,6 +1242,9 @@ function DebugPanel({
 function App() {
   const isDebug = useDebugMode()
   const isSunIconLab = window.location.pathname.startsWith('/sun-icon')
+  // /source: full-screen debug view of the raw caster map the shadow shader
+  // samples -- the "2D art" -- live with wind animation, panel kept on top
+  const isSourceView = window.location.pathname.startsWith('/source')
   useDeferredFontStylesheet(isDebug)
   const [responsiveVisualConfig, setResponsiveVisualConfig] = useState(() =>
     getResponsiveVisualConfig(window.innerWidth, window.innerHeight),
@@ -1164,6 +1260,8 @@ function App() {
   })
   const [shadowMapMode, setShadowMapMode] = useState<ShadowMapMode>(responsiveVisualConfig.shadowMapMode)
   const [isDebugPanelCollapsed, setIsDebugPanelCollapsed] = useState(false)
+  const shadowSourcePreview = useShadowSourcePreview()
+  const [showShadowSource, setShowShadowSource] = useState(false)
   const [sunWidget, setSunWidget] = useState<SunWidgetChoice>('gnomon')
   const [debugPanelTab, setDebugPanelTab] = useState<DebugPanelTab>('shadow')
   const [typeSettings, setTypeSettings] = useState<TypeSettings>({
@@ -1261,7 +1359,13 @@ function App() {
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key.toLowerCase() !== 's') return
-      if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return
+      if (event.metaKey || event.ctrlKey || event.altKey) return
+
+      if (event.shiftKey) {
+        setShowShadowSource((isVisible) => !isVisible)
+        emitDebugTimelineEvent('source preview toggled')
+        return
+      }
 
       setShadowMapMode((currentMode) => {
         const currentIndex = shadowMapModes.indexOf(currentMode)
@@ -1334,11 +1438,12 @@ function App() {
             opacityScale={shadowFactor}
             settings={shadowSettings}
             shadowTint={shadowTint}
+            showSource={isSourceView}
             sunAngle={effectiveSunAngle}
           />
         ) : null}
       </div>
-      {sunWidget === 'none' ? null : (
+      {sunWidget === 'none' || isSourceView ? null : (
         <div className="sun-angle-widget" aria-hidden="true">
           <SunWidget angle={effectiveSunAngle} variant={sunWidget} />
           <span className="sun-widget-clock">
@@ -1346,6 +1451,7 @@ function App() {
           </span>
         </div>
       )}
+      {isSourceView ? null : (
       <section className="intro" aria-label="About Ben Everman">
         <p className="name">Ben Everman</p>
         <p>
@@ -1374,6 +1480,8 @@ function App() {
           </a>.
         </p>
       </section>
+      )}
+      {isSourceView ? null : (
       <footer className="inspiration-footer">
         shaders inspired by{' '}
         <a href="https://basement.studio/" rel="noreferrer" target="_blank">
@@ -1384,6 +1492,7 @@ function App() {
           Fara Yan
         </a>
       </footer>
+      )}
       {isDebug ? (
         <DebugPanel
           activeTab={debugPanelTab}
@@ -1398,18 +1507,28 @@ function App() {
           onChange={setShadowMapMode}
           onFontChange={setFont}
           onLogPreset={logCurrentPreset}
+          onPreviewPick={(samplerX, samplerY) => {
+            if (!shadowSourcePreview) return
+            setShadowSettings((current) => ({
+              ...current,
+              samplerX: samplerX / shadowSourcePreview.width,
+              samplerY: samplerY / shadowSourcePreview.height,
+            }))
+          }}
           onSettingsChange={setShadowSettings}
           onSunWidgetChange={setSunWidget}
           onTextureSettingsChange={setTextureSettings}
           onToggleCollapsed={() => setIsDebugPanelCollapsed((isCollapsed) => !isCollapsed)}
           onTypeSettingsChange={setTypeSettings}
+          preview={shadowSourcePreview}
           settings={shadowSettings}
+          showPreview={showShadowSource}
           sunWidget={sunWidget}
           textureSettings={textureSettings}
           typeSettings={typeSettings}
         />
       ) : null}
-      <div className="surface-texture" aria-hidden="true" />
+      {isSourceView ? null : <div className="surface-texture" aria-hidden="true" />}
     </main>
   )
 }

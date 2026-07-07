@@ -65,6 +65,7 @@ uniform highp float uSunAngle;
 uniform highp float uWarpStrength;
 uniform highp float uDepthMix;
 uniform highp float uLayerSpread;
+uniform highp float uShowSource;
 
 varying vec2 vTexCoord;
 
@@ -121,6 +122,14 @@ float sampleShadowLayer(vec2 animatedUv, float activeSamples, float edgeCrispnes
 void main() {
   vec2 uv = vTexCoord;
   uv.y = 1.0 - uv.y;
+
+  // debug source view: show the raw caster map (r = painted height,
+  // g = caster flag, b = per-caster strength) instead of computing shadow
+  if (uShowSource > 0.5) {
+    gl_FragColor = vec4(texture2D(uTexture, uv).rgb, 1.0);
+    return;
+  }
+
   vec2 animatedUv = uv;
   float animatedTime = uTime * uAnimationSpeed;
   animatedUv.x += sin(animatedTime * 0.24) * 0.028 * uAnimationStrength * uWarpStrength;
@@ -518,7 +527,7 @@ function createPreviewDataUrl(pixels: Uint8Array, width: number, height: number)
   }
 }
 
-function SourceSceneShadowPlane({ crispnessScale, mode, settings, shadowTint, sunAngle }: { crispnessScale: number; mode: ShadowMapMode; settings: ShadowSettings; shadowTint: readonly [number, number, number]; sunAngle: number }) {
+function SourceSceneShadowPlane({ crispnessScale, mode, settings, shadowTint, showSource, sunAngle }: { crispnessScale: number; mode: ShadowMapMode; settings: ShadowSettings; shadowTint: readonly [number, number, number]; showSource: boolean; sunAngle: number }) {
   const { gl, size } = useThree()
   const materialRef = useRef<THREE.ShaderMaterial>(null)
   const previewKeyRef = useRef('')
@@ -551,6 +560,7 @@ function SourceSceneShadowPlane({ crispnessScale, mode, settings, shadowTint, su
       uSampleCount: { value: settings.sampleCount },
       uShadowContrast: { value: settings.contrast },
       uShadowTint: { value: [...shadowTint] },
+      uShowSource: { value: 0 },
       uSunAngle: { value: settings.sunAngle },
       uTexture: { value: renderTarget.texture },
       uTime: { value: 0 },
@@ -612,6 +622,7 @@ function SourceSceneShadowPlane({ crispnessScale, mode, settings, shadowTint, su
       materialRef.current.uniforms.uSampleCount.value = settings.sampleCount
       materialRef.current.uniforms.uShadowContrast.value = settings.contrast
       materialRef.current.uniforms.uShadowTint.value = shadowTint
+      materialRef.current.uniforms.uShowSource.value = showSource ? 1 : 0
       materialRef.current.uniforms.uSunAngle.value = sunAngle
       materialRef.current.uniforms.uWarpStrength.value = mode === 'window' || mode === 'mixed' ? 0 : 1
     }
@@ -670,7 +681,7 @@ function SourceSceneShadowPlane({ crispnessScale, mode, settings, shadowTint, su
 // per-frame day-cycle fade cannot change the settings object's identity --
 // buildSourceScene memoizes on it and would rebuild the THREE scene every
 // frame otherwise.
-export default function V2ShadowLayer({ crispnessScale, mode, opacityScale, settings, shadowTint, sunAngle }: { crispnessScale: number; mode: ShadowMapMode; opacityScale: number; settings: ShadowSettings; shadowTint: readonly [number, number, number]; sunAngle: number }) {
+export default function V2ShadowLayer({ crispnessScale, mode, opacityScale, settings, shadowTint, showSource = false, sunAngle }: { crispnessScale: number; mode: ShadowMapMode; opacityScale: number; settings: ShadowSettings; shadowTint: readonly [number, number, number]; showSource?: boolean; sunAngle: number }) {
   const [isVisible, setIsVisible] = useState(false)
 
   useEffect(() => {
@@ -686,7 +697,7 @@ export default function V2ShadowLayer({ crispnessScale, mode, opacityScale, sett
     <div
       className={`daylight-shadow-layer ${isVisible ? 'is-visible' : ''}`}
       aria-hidden="true"
-      style={{ ['--shadow-opacity' as string]: settings.opacity * opacityScale }}
+      style={{ ['--shadow-opacity' as string]: showSource ? 1 : settings.opacity * opacityScale }}
     >
       <Canvas
         camera={{ position: [0, 0, 1], near: 0.1, far: 10 }}
@@ -696,7 +707,7 @@ export default function V2ShadowLayer({ crispnessScale, mode, opacityScale, sett
           gl.setClearColor(0xf2f0ee, 0)
         }}
       >
-        <SourceSceneShadowPlane crispnessScale={crispnessScale} mode={mode} settings={settings} shadowTint={shadowTint} sunAngle={sunAngle} />
+        <SourceSceneShadowPlane crispnessScale={crispnessScale} mode={mode} settings={settings} shadowTint={shadowTint} showSource={showSource} sunAngle={sunAngle} />
       </Canvas>
     </div>
   )
