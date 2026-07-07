@@ -44,8 +44,10 @@ type ShadowSettings = {
   samplerY: number
   scale: number
   speed: number
-  strength: number
   sunAngle: number
+  // wind sway amplitude for the caster scene; distinct from blindStrength/
+  // canopyStrength, which weight how darkly each layer's shadows press in
+  wind: number
 }
 
 type TypeSettings = {
@@ -926,15 +928,15 @@ function DebugPanel({
           />
         </label>
         <label>
-          <span>strength</span>
-          <span>{settings.strength.toFixed(2)}</span>
+          <span>wind</span>
+          <span>{settings.wind.toFixed(2)}</span>
           <input
             max="6"
             min="0"
-            onChange={(event) => onSettingsChange({ ...settings, strength: Number(event.currentTarget.value) })}
+            onChange={(event) => onSettingsChange({ ...settings, wind: Number(event.currentTarget.value) })}
             step="0.05"
             type="range"
-            value={settings.strength}
+            value={settings.wind}
           />
         </label>
         <label>
@@ -1346,9 +1348,9 @@ function App() {
   useEffect(() => {
     emitDebugTimelineEvent(
       'shadow tuned',
-      `${shadowSettings.speed.toFixed(2)} / ${shadowSettings.strength.toFixed(2)} / ${shadowSettings.crispness.toFixed(2)} / ${shadowSettings.opacity.toFixed(2)}`,
+      `${shadowSettings.speed.toFixed(2)} / ${shadowSettings.wind.toFixed(2)} / ${shadowSettings.crispness.toFixed(2)} / ${shadowSettings.opacity.toFixed(2)}`,
     )
-  }, [shadowSettings.crispness, shadowSettings.opacity, shadowSettings.speed, shadowSettings.strength])
+  }, [shadowSettings.crispness, shadowSettings.opacity, shadowSettings.speed, shadowSettings.wind])
 
   useEffect(() => {
     if (!isDebug) return

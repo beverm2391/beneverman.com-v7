@@ -19,8 +19,8 @@ export const siteVisualConfig = {
     samplerY: 0.5,
     scale: 1.4,
     speed: 0.55,
-    strength: 1.5,
     sunAngle: 2.95,
+    wind: 1.5,
   },
   textureSettings: {
     opacity: 0.17,
@@ -51,8 +51,8 @@ export const siteVisualConfig = {
         samplerY: 0.5,
         scale: 1.35,
         speed: 1.1,
-        strength: 1.5,
         sunAngle: 2.95,
+        wind: 1.5,
       },
       textureSettings: {
         opacity: 0.17,

@@ -28,8 +28,10 @@ type ShadowSettings = {
   samplerY: number
   scale: number
   speed: number
-  strength: number
   sunAngle: number
+  // wind sway amplitude (mesh animation + UV warp); not a shadow weight --
+  // per-layer darkness lives in blindStrength/canopyStrength
+  wind: number
 }
 
 const maxShadowTextureDpr = 1.5
@@ -572,7 +574,7 @@ function SourceSceneShadowPlane({ crispnessScale, mode, settings, shadowTint, sh
     () => ({
       hSize: { value: textureHeight },
       uAnimationSpeed: { value: settings.speed },
-      uAnimationStrength: { value: settings.strength },
+      uAnimationStrength: { value: settings.wind },
       uDepthMix: { value: settings.depthMix },
       uEdgeCrispness: { value: settings.crispness },
       uKernelScale: { value: kernelScale },
@@ -589,7 +591,7 @@ function SourceSceneShadowPlane({ crispnessScale, mode, settings, shadowTint, sh
       uWarpStrength: { value: mode === 'window' || mode === 'mixed' ? 0 : 1 },
       wSize: { value: textureWidth },
     }),
-    [kernelScale, mode, renderTarget.texture, settings.contrast, settings.crispness, settings.depthMix, settings.layerSpread, settings.sampleCount, settings.speed, settings.strength, settings.sunAngle, textureHeight, textureWidth],
+    [kernelScale, mode, renderTarget.texture, settings.contrast, settings.crispness, settings.depthMix, settings.layerSpread, settings.sampleCount, settings.speed, settings.wind, settings.sunAngle, textureHeight, textureWidth],
   )
 
   useEffect(() => {
@@ -615,15 +617,15 @@ function SourceSceneShadowPlane({ crispnessScale, mode, settings, shadowTint, sh
       for (const clump of canopyGroup.children) {
         const { baseX, baseY, phase } = clump.userData
         clump.rotation.z =
-          Math.sin(animatedTime * 0.32 + phase) * 0.024 * settings.strength +
-          Math.sin(animatedTime * 0.86 + phase * 2.3) * 0.009 * settings.strength
-        clump.position.x = baseX + Math.sin(animatedTime * 0.21 + phase) * 0.016 * settings.strength
-        clump.position.y = baseY + Math.cos(animatedTime * 0.27 + phase * 1.4) * 0.009 * settings.strength
+          Math.sin(animatedTime * 0.32 + phase) * 0.024 * settings.wind +
+          Math.sin(animatedTime * 0.86 + phase * 2.3) * 0.009 * settings.wind
+        clump.position.x = baseX + Math.sin(animatedTime * 0.21 + phase) * 0.016 * settings.wind
+        clump.position.y = baseY + Math.cos(animatedTime * 0.27 + phase * 1.4) * 0.009 * settings.wind
       }
     } else {
-      sourceScene.position.x = Math.sin(animatedTime * 0.16) * 0.035 * settings.strength
-      sourceScene.position.y = Math.cos(animatedTime * 0.12) * 0.025 * settings.strength
-      sourceScene.rotation.z = Math.sin(animatedTime * 0.08) * 0.018 * settings.strength
+      sourceScene.position.x = Math.sin(animatedTime * 0.16) * 0.035 * settings.wind
+      sourceScene.position.y = Math.cos(animatedTime * 0.12) * 0.025 * settings.wind
+      sourceScene.rotation.z = Math.sin(animatedTime * 0.08) * 0.018 * settings.wind
     }
 
     gl.setRenderTarget(renderTarget)
@@ -635,7 +637,7 @@ function SourceSceneShadowPlane({ crispnessScale, mode, settings, shadowTint, sh
     if (materialRef.current) {
       materialRef.current.uniforms.uTime.value = clock.elapsedTime
       materialRef.current.uniforms.uAnimationSpeed.value = settings.speed
-      materialRef.current.uniforms.uAnimationStrength.value = settings.strength
+      materialRef.current.uniforms.uAnimationStrength.value = settings.wind
       materialRef.current.uniforms.uDepthMix.value = settings.depthMix
       materialRef.current.uniforms.uEdgeCrispness.value = settings.crispness * crispnessScale
       materialRef.current.uniforms.uKernelScale.value = kernelScale
