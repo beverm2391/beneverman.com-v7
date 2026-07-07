@@ -7,11 +7,6 @@ import {
   type DebugTimelineEvent,
 } from './debugTimeline'
 import { shadowMapModes, type ShadowMapMode } from './shadowMapModes'
-import {
-  getShadowSourcePreview,
-  subscribeShadowSourcePreview,
-  type ShadowSourcePreview,
-} from './shadowSourcePreview'
 import { siteVisualConfig } from './siteVisualConfig'
 import { SunIconLab } from './SunIconLab'
 import { getShadowFactor, SunWidget, sunWidgetVariants, type SunWidgetVariant } from './SunWidget'
@@ -30,18 +25,9 @@ function mixVec3(a: Vec3, b: Vec3, t: number): Vec3 {
 }
 
 type ShadowSettings = {
-  blindStrength: number
-  canopyStrength: number
-  contrast: number
   crispness: number
   density: number
-  depthMix: number
-  layerSpread: number
   opacity: number
-  resolution: number
-  sampleCount: number
-  samplerX: number
-  samplerY: number
   scale: number
   speed: number
   strength: number
@@ -70,10 +56,7 @@ type ShadowLayerComponent = ComponentType<{
   sunAngle: number
 }>
 
-type ShadowVersion = 'v1' | 'v2' | 'v3'
 type DebugPanelTab = 'shadow' | 'type' | 'logs'
-type ShadowConfigTab = 'scene' | 'layers'
-type ShadowLayerTab = 'blinds' | 'canopy'
 type VisualSizeClass = 'mobilePortrait' | 'tabletPortrait' | 'desktop' | 'desktopWide'
 type AppliedVisualPreset = 'mobile' | 'desktop'
 type SunWidgetChoice = SunWidgetVariant | 'none'
@@ -251,14 +234,6 @@ function useDebugTimeline() {
   return events
 }
 
-function useShadowSourcePreview() {
-  const [preview, setPreview] = useState<ShadowSourcePreview | null>(() => getShadowSourcePreview())
-
-  useEffect(() => subscribeShadowSourcePreview(setPreview), [])
-
-  return preview
-}
-
 function useShadowCapability() {
   const [battery, setBattery] = useState<BatteryStatus | null>(null)
   const [capability, setCapability] = useState(() => getShadowCapability())
@@ -289,28 +264,6 @@ function useShadowCapability() {
   }, [])
 
   return capability
-}
-
-// v2 (THREE source scene) is the site default; v1 (canvas texture layer) and
-// v3 (PCSS light-and-shadow scene) are reachable at /v1 and /v3 for
-// comparison.
-function getCurrentVersion(): ShadowVersion {
-  if (window.location.pathname.startsWith('/v1')) return 'v1'
-  if (window.location.pathname.startsWith('/v3')) return 'v3'
-  return 'v2'
-}
-
-function useCurrentVersion() {
-  const [version, setVersion] = useState<ShadowVersion>(() => getCurrentVersion())
-
-  useEffect(() => {
-    const handlePopState = () => setVersion(getCurrentVersion())
-
-    window.addEventListener('popstate', handlePopState)
-    return () => window.removeEventListener('popstate', handlePopState)
-  }, [])
-
-  return version
 }
 
 function getVisualSizeClass(width: number, height: number): VisualSizeClass {
@@ -438,7 +391,7 @@ function useAnimatedSunAngle(baseSunAngle: number) {
   return animatedAngle
 }
 
-function useAfterInteractiveShadowLayer(shouldLoad: boolean, version: ShadowVersion) {
+function useAfterInteractiveShadowLayer(shouldLoad: boolean) {
   const [ShadowLayer, setShadowLayer] = useState<ShadowLayerComponent | null>(null)
 
   useEffect(() => {
@@ -452,17 +405,11 @@ function useAfterInteractiveShadowLayer(shouldLoad: boolean, version: ShadowVers
     let isCancelled = false
 
     const loadShadowLayer = () => {
-      emitDebugTimelineEvent('chunk requested', version)
-      const layerModule =
-        version === 'v1'
-          ? import('./DaylightShadowLayer')
-          : version === 'v3'
-            ? import('./V3ShadowLayer')
-            : import('./V2ShadowLayer')
+      emitDebugTimelineEvent('chunk requested')
 
-      void layerModule.then((module) => {
+      void import('./V3ShadowLayer').then((module) => {
         if (isCancelled) return
-        emitDebugTimelineEvent('chunk loaded', version)
+        emitDebugTimelineEvent('chunk loaded')
         setShadowLayer(() => module.default)
       })
     }
@@ -477,7 +424,7 @@ function useAfterInteractiveShadowLayer(shouldLoad: boolean, version: ShadowVers
     return () => {
       isCancelled = true
     }
-  }, [shouldLoad, version])
+  }, [shouldLoad])
 
   return ShadowLayer
 }
@@ -767,19 +714,15 @@ function DebugPanel({
   onChange,
   onFontChange,
   onLogPreset,
-  onPreviewPick,
   onSettingsChange,
   onSunWidgetChange,
   onTextureSettingsChange,
   onToggleCollapsed,
   onTypeSettingsChange,
-  preview,
   settings,
-  showPreview,
   sunWidget,
   textureSettings,
   typeSettings,
-  version,
 }: {
   activeTab: DebugPanelTab
   background: BackgroundMode
@@ -793,29 +736,19 @@ function DebugPanel({
   onChange: (mode: ShadowMapMode) => void
   onFontChange: (font: FontMode) => void
   onLogPreset: () => void
-  onPreviewPick: (x: number, y: number) => void
   onSettingsChange: (settings: ShadowSettings) => void
   onSunWidgetChange: (widget: SunWidgetChoice) => void
   onTextureSettingsChange: (settings: TextureSettings) => void
   onToggleCollapsed: () => void
   onTypeSettingsChange: (settings: TypeSettings) => void
-  preview: ShadowSourcePreview | null
   settings: ShadowSettings
-  showPreview: boolean
   sunWidget: SunWidgetChoice
   textureSettings: TextureSettings
   typeSettings: TypeSettings
-  version: ShadowVersion
 }) {
   const finalTime = Math.max(1, events.at(-1)?.time ?? 1)
-  const [shadowConfigTab, setShadowConfigTab] = useState<ShadowConfigTab>('scene')
-  const [shadowLayerTab, setShadowLayerTab] = useState<ShadowLayerTab>('blinds')
   const timeOfDayFraction =
     cycleTimeAtSunAngle(Math.PI - settings.sunAngle) / sunCycleDurationSeconds
-  // v3 replaces the v2 caster-map shader with a real PCSS light, so the
-  // sampler-era controls (depth encoding, blur taps, map resolution, per-layer
-  // strengths, source preview) have nothing to drive there
-  const isPcss = version === 'v3'
 
   return (
     <div className={`site-debug-panel debug-panel ${isCollapsed ? 'is-collapsed' : ''}`} aria-label="Debug controls">
@@ -873,17 +806,6 @@ function DebugPanel({
           </button>
         ))}
       </div>
-      {isPcss ? null : (
-        <div className="shadow-map-buttons shadow-config-tabs" aria-label="Shadow config sections">
-          {(['scene', 'layers'] as const).map((tab) => (
-            <button aria-pressed={shadowConfigTab === tab} key={tab} onClick={() => setShadowConfigTab(tab)} type="button">
-              {tab}
-            </button>
-          ))}
-        </div>
-      )}
-      {shadowConfigTab === 'scene' || isPcss ? (
-        <>
       <div className="shadow-animation-controls">
         <label>
           <span>texture opacity</span>
@@ -911,34 +833,6 @@ function DebugPanel({
         </label>
       </div>
       <div className="shadow-animation-controls">
-        {isPcss ? null : (
-          <>
-        <label>
-          <span>depth mix</span>
-          <span>{settings.depthMix.toFixed(2)}</span>
-          <input
-            max="1"
-            min="0"
-            onChange={(event) => onSettingsChange({ ...settings, depthMix: Number(event.currentTarget.value) })}
-            step="0.01"
-            type="range"
-            value={settings.depthMix}
-          />
-        </label>
-        <label>
-          <span>layer spread</span>
-          <span>{settings.layerSpread.toFixed(2)}</span>
-          <input
-            max="2.5"
-            min="0.25"
-            onChange={(event) => onSettingsChange({ ...settings, layerSpread: Number(event.currentTarget.value) })}
-            step="0.05"
-            type="range"
-            value={settings.layerSpread}
-          />
-        </label>
-          </>
-        )}
         <label>
           <span>speed</span>
           <span>{settings.speed.toFixed(2)}</span>
@@ -985,7 +879,7 @@ function DebugPanel({
           <span>crispness</span>
           <span>{settings.crispness.toFixed(2)}</span>
           <input
-            max={isPcss ? '6' : '3'}
+            max="6"
             min="0.45"
             onChange={(event) => onSettingsChange({ ...settings, crispness: Number(event.currentTarget.value) })}
             step="0.05"
@@ -1005,20 +899,6 @@ function DebugPanel({
             value={settings.opacity}
           />
         </label>
-        {isPcss ? null : (
-        <label>
-          <span>contrast</span>
-          <span>{settings.contrast.toFixed(2)}</span>
-          <input
-            max="2.5"
-            min="0.3"
-            onChange={(event) => onSettingsChange({ ...settings, contrast: Number(event.currentTarget.value) })}
-            step="0.05"
-            type="range"
-            value={settings.contrast}
-          />
-        </label>
-        )}
         <label>
           <span>source scale</span>
           <span>{settings.scale.toFixed(2)}</span>
@@ -1043,151 +923,7 @@ function DebugPanel({
             value={settings.density}
           />
         </label>
-        {isPcss ? null : (
-          <>
-        <label>
-          <span>samples</span>
-          <span>{Math.round(settings.sampleCount)}</span>
-          <input
-            max="100"
-            min="24"
-            onChange={(event) => onSettingsChange({ ...settings, sampleCount: Number(event.currentTarget.value) })}
-            step="4"
-            type="range"
-            value={settings.sampleCount}
-          />
-        </label>
-        <label>
-          <span>resolution</span>
-          <span>{settings.resolution.toFixed(2)}</span>
-          <input
-            max="1.25"
-            min="0.35"
-            onChange={(event) => onSettingsChange({ ...settings, resolution: Number(event.currentTarget.value) })}
-            step="0.05"
-            type="range"
-            value={settings.resolution}
-          />
-        </label>
-          </>
-        )}
       </div>
-        </>
-      ) : null}
-      {shadowConfigTab === 'layers' ? (
-        <>
-          <div className="shadow-map-buttons shadow-layer-tabs" aria-label="Shadow layers">
-            {(['blinds', 'canopy'] as const).map((layer) => (
-              <button aria-pressed={shadowLayerTab === layer} key={layer} onClick={() => setShadowLayerTab(layer)} type="button">
-                {layer}
-              </button>
-            ))}
-          </div>
-          <div className="shadow-animation-controls">
-            {shadowLayerTab === 'blinds' ? (
-              <label>
-                <span>strength</span>
-                <span>{settings.blindStrength.toFixed(2)}</span>
-                <input
-                  max="1.5"
-                  min="0"
-                  onChange={(event) => onSettingsChange({ ...settings, blindStrength: Number(event.currentTarget.value) })}
-                  step="0.01"
-                  type="range"
-                  value={settings.blindStrength}
-                />
-              </label>
-            ) : null}
-            {shadowLayerTab === 'canopy' ? (
-              <label>
-                <span>strength</span>
-                <span>{settings.canopyStrength.toFixed(2)}</span>
-                <input
-                  max="1.5"
-                  min="0"
-                  onChange={(event) => onSettingsChange({ ...settings, canopyStrength: Number(event.currentTarget.value) })}
-                  step="0.01"
-                  type="range"
-                  value={settings.canopyStrength}
-                />
-              </label>
-            ) : null}
-          </div>
-        </>
-      ) : null}
-      {showPreview && !isPcss ? (
-        <div className="shadow-source-preview" aria-label="Shadow source preview">
-          <div>
-            <span>source</span>
-            <span>
-              {preview ? `${preview.mode} ${preview.width}x${preview.height}` : 'waiting'}
-            </span>
-          </div>
-          {preview?.dataUrl ? (
-            <button
-              aria-label="Move shadow sampler"
-              className="shadow-source-frame"
-              onClick={(event) => {
-                const rect = event.currentTarget.getBoundingClientRect()
-                const x = ((event.clientX - rect.left) / rect.width) * preview.width
-                const y = ((event.clientY - rect.top) / rect.height) * preview.height
-
-                onPreviewPick(x, y)
-              }}
-              style={{ aspectRatio: `${preview.width} / ${preview.height}` }}
-              type="button"
-            >
-              <img alt="" src={preview.dataUrl} />
-              {preview.sampler ? (
-                <>
-                  <span
-                    className="shadow-sampler-probe"
-                    style={{
-                      left: `${(preview.sampler.sampleX / preview.width) * 100}%`,
-                      top: `${(preview.sampler.sampleY / preview.height) * 100}%`,
-                    }}
-                  />
-                  {preview.sampler.points.map((point, index) => {
-                    const sampleSize = point.hitCaster
-                      ? `${Math.max(0.55, (point.casterSize / preview.width) * 100)}%`
-                      : '0.35rem'
-
-                    return (
-                      <span
-                        className={[
-                          'shadow-sampler-point',
-                          point.hitCaster ? 'is-hit' : '',
-                          point.contributes ? 'is-contributing' : '',
-                        ]
-                          .filter(Boolean)
-                          .join(' ')}
-                        key={`${point.x}-${point.y}-${index}`}
-                        style={{
-                          height: sampleSize,
-                          left: `${(point.x / preview.width) * 100}%`,
-                          top: `${(point.y / preview.height) * 100}%`,
-                          width: sampleSize,
-                        }}
-                      />
-                    )
-                  })}
-                </>
-              ) : null}
-            </button>
-          ) : (
-            <div className="shadow-source-empty" />
-          )}
-          {preview?.sampler ? (
-            <div className="shadow-sampler-readout">
-              <span>probe</span>
-              <span>
-                {preview.sampler.contributingSamples}/{preview.sampler.points.length} samples ·{' '}
-                {preview.sampler.shadowFactor.toFixed(2)}
-              </span>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
         </>
       ) : null}
       {activeTab === 'type' ? (
@@ -1287,7 +1023,6 @@ function DebugPanel({
 
 function App() {
   const isDebug = useDebugMode()
-  const version = useCurrentVersion()
   const isSunIconLab = window.location.pathname.startsWith('/sun-icon')
   useDeferredFontStylesheet(isDebug)
   const [responsiveVisualConfig, setResponsiveVisualConfig] = useState(() =>
@@ -1296,14 +1031,12 @@ function App() {
   const activeResponsivePresetRef = useRef<AppliedVisualPreset>(responsiveVisualConfig.appliedPreset)
   const [background, setBackground] = useState<BackgroundMode>(responsiveVisualConfig.background)
   const [font, setFont] = useState<FontMode>(responsiveVisualConfig.font)
-  const shadowSourcePreview = useShadowSourcePreview()
   const timelineEvents = useDebugTimeline()
   const shadowCapability = useShadowCapability()
-  const ShadowLayer = useAfterInteractiveShadowLayer(shadowCapability.enabled && !isSunIconLab, version)
+  const ShadowLayer = useAfterInteractiveShadowLayer(shadowCapability.enabled && !isSunIconLab)
   const [shadowSettings, setShadowSettings] = useState<ShadowSettings>({
     ...responsiveVisualConfig.shadowSettings,
   })
-  const [showShadowSource, setShowShadowSource] = useState(false)
   const [shadowMapMode, setShadowMapMode] = useState<ShadowMapMode>(responsiveVisualConfig.shadowMapMode)
   const [isDebugPanelCollapsed, setIsDebugPanelCollapsed] = useState(false)
   const [sunWidget, setSunWidget] = useState<SunWidgetChoice>('gnomon')
@@ -1403,13 +1136,7 @@ function App() {
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key.toLowerCase() !== 's') return
-      if (event.metaKey || event.ctrlKey || event.altKey) return
-
-      if (event.shiftKey) {
-        setShowShadowSource((isVisible) => !isVisible)
-        emitDebugTimelineEvent('source preview toggled')
-        return
-      }
+      if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return
 
       setShadowMapMode((currentMode) => {
         const currentIndex = shadowMapModes.indexOf(currentMode)
@@ -1546,27 +1273,15 @@ function App() {
           onChange={setShadowMapMode}
           onFontChange={setFont}
           onLogPreset={logCurrentPreset}
-          onPreviewPick={(samplerX, samplerY) => {
-            if (!shadowSourcePreview) return
-            setShadowSettings((currentSettings) => ({
-              ...currentSettings,
-              samplerX: samplerX / shadowSourcePreview.width,
-              samplerY: samplerY / shadowSourcePreview.height,
-            }))
-            emitDebugTimelineEvent('sampler moved')
-          }}
           onSettingsChange={setShadowSettings}
           onSunWidgetChange={setSunWidget}
           onTextureSettingsChange={setTextureSettings}
           onToggleCollapsed={() => setIsDebugPanelCollapsed((isCollapsed) => !isCollapsed)}
           onTypeSettingsChange={setTypeSettings}
-          preview={shadowSourcePreview}
           settings={shadowSettings}
-          showPreview={showShadowSource}
           sunWidget={sunWidget}
           textureSettings={textureSettings}
           typeSettings={typeSettings}
-          version={version}
         />
       ) : null}
       <div className="surface-texture" aria-hidden="true" />

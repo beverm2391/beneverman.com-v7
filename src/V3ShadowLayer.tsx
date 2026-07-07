@@ -22,18 +22,9 @@ import type { ShadowMapMode } from './shadowMapModes'
 // was provably never in the compiled shader.)
 
 type ShadowSettings = {
-  blindStrength: number
-  canopyStrength: number
-  contrast: number
   crispness: number
   density: number
-  depthMix: number
-  layerSpread: number
   opacity: number
-  resolution: number
-  sampleCount: number
-  samplerX: number
-  samplerY: number
   scale: number
   speed: number
   strength: number
