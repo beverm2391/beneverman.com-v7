@@ -13,13 +13,17 @@ import {
 import type { ShadowMapMode } from './shadowMapModes'
 
 // v3: physically-based shadows. A real DirectionalLight shadow-maps the oak
-// foliage onto a ShadowMaterial page plane using three r185's native soft PCF
-// (5 Vogel-disk samples x hardware 4-tap bilinear compare, noise-rotated per
-// pixel). Edge softness is light.shadow.radius -- a per-frame uniform driven
-// from the crispness setting and the day cycle, no shader hacks, no
-// recompiles. (drei's <SoftShadows> PCSS injection silently no-ops on r185's
-// restructured shadow chunk + program cache; we shipped it for a while and it
-// was provably never in the compiled shader.)
+// foliage onto a ShadowMaterial page plane using VSM (variance shadow maps).
+// VSM pre-blurs the depth map GPU-side each frame, so the penumbra is smooth
+// and noise-free and moves rigidly with the shadow -- unlike PCF, whose
+// interleaved-gradient-noise dither is pinned to screen pixels and makes
+// moving edges shimmer/boil (the "not cozy" problem). Edge softness is
+// light.shadow.radius (here: blur radius in texels), a per-frame uniform
+// driven from the crispness setting and the day cycle -- no shader hacks, no
+// recompiles. VSM quirks encoded below: receivers must also cast (the map
+// needs defined depth everywhere), blurSamples fights vertical banding, and
+// mapSize is capped since blur hides texels anyway. (drei's <SoftShadows>
+// PCSS injection silently no-ops on r185 and was provably never compiled.)
 
 type ShadowSettings = {
   crispness: number
@@ -41,15 +45,14 @@ const unitPlane = new THREE.PlaneGeometry(1, 1)
 const shadowFrustum = 2.6
 
 // Size the shadow map to the device instead of hardcoding: aim for roughly one
-// texel per rendered pixel across the frustum, snapped to a power of two. A
-// phone lands at 1024-2048 (cheap), a 2x desktop at 4096 (sharp). The penumbra
-// floor in PcssSoftShadows hides the texel grid either way, so undershooting
-// on weak devices degrades to "slightly softer", never to staircase edges.
+// texel per rendered pixel across the frustum, snapped to a power of two, but
+// capped at 2048 -- VSM pre-blurs the map every frame, so blur hides texels
+// (higher res buys little) and the blur pass cost scales with map area.
 function pickShadowMapSize(viewportWidth: number, dpr: number) {
   const pixelsPerWorldUnit = (viewportWidth / 2) * dpr
   const wanted = shadowFrustum * 2 * pixelsPerWorldUnit
   let mapSize = 1024
-  while (mapSize < wanted && mapSize < 4096) mapSize *= 2
+  while (mapSize < wanted && mapSize < 2048) mapSize *= 2
   return mapSize
 }
 
@@ -290,13 +293,14 @@ function V3Scene({
     shadowMaterialRef.current?.color.setRGB(shadowTint[0], shadowTint[1], shadowTint[2])
 
     if (lightRef.current) {
-      // edge softness: the native PCF filter disk radius in shadow-map texels.
-      // crispness is the user knob, crispnessScale the day cycle (edges harden
-      // toward noon, soften toward the horizons). It's a struct uniform, so
-      // animating it per frame is free -- no recompile.
+      // edge softness: the VSM pre-blur radius in shadow-map texels. crispness
+      // is the user knob, crispnessScale the day cycle (edges harden toward
+      // noon, soften toward the horizons). VSM blurs the map itself, so the
+      // penumbra is a smooth gradient that moves rigidly with the shadow --
+      // no screen-space grain, no edge shimmer while things sway.
       lightRef.current.shadow.radius = Math.min(
-        30,
-        Math.max(1, 7.5 / Math.max(0.2, settings.crispness * crispnessScale)),
+        16,
+        Math.max(0.6, 3.6 / Math.max(0.15, settings.crispness * crispnessScale)),
       )
     }
   })
@@ -311,6 +315,7 @@ function V3Scene({
         key={shadowMapSize}
         ref={lightRef}
         shadow-bias={-0.0004}
+        shadow-blurSamples={24}
         shadow-mapSize={[shadowMapSize, shadowMapSize]}
       >
         {/* frustum must go through constructor args: mutating shadow-camera-*
@@ -322,7 +327,10 @@ function V3Scene({
         />
       </directionalLight>
       <primitive object={foliage} />
-      <mesh receiveShadow>
+      {/* castShadow on the receiver is required by VSM: the variance blur
+          needs defined depth across the whole map, so the floor writes its
+          own depth as the background */}
+      <mesh castShadow receiveShadow>
         <planeGeometry args={[10, 10]} />
         <shadowMaterial ref={shadowMaterialRef} transparent />
       </mesh>
@@ -362,9 +370,9 @@ export default function V3ShadowLayer({
       aria-hidden="true"
       style={{ ['--shadow-opacity' as string]: settings.opacity * opacityScale }}
     >
-      {/* shadows="percentage" = plain PCF: r185 deprecated PCFSoftShadowMap
-          (native PCF is already soft -- Vogel disk + hardware bilinear) and
-          asking for it warns every frame */}
+      {/* variance (VSM) shadow maps: the map is pre-blurred on the GPU each
+          frame, giving smooth noise-free penumbra. PCF's screen-fixed dither
+          made moving shadow edges shimmer against the static grain. */}
       <Canvas
         camera={{ far: 30, near: 0.1, position: [0, 0, 10] }}
         dpr={[1, 1.5]}
@@ -373,7 +381,7 @@ export default function V3ShadowLayer({
           gl.setClearColor(0x000000, 0)
         }}
         orthographic
-        shadows="percentage"
+        shadows="variance"
       >
         <V3Scene
           crispnessScale={crispnessScale}
