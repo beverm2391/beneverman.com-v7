@@ -811,6 +811,10 @@ function DebugPanel({
         <span>{capability.enabled ? 'shadow on' : 'shadow off'}</span>
         <span>{capability.reasons.join(', ')}</span>
       </div>
+      <div className="shadow-effect-status">
+        <span>caster map</span>
+        <span>{preview ? `${preview.width}×${preview.height}` : 'waiting'}</span>
+      </div>
       <div className="shadow-map-buttons">
         {shadowMapModes.map((mode) => (
           <button aria-pressed={currentMode === mode} key={mode} onClick={() => onChange(mode)} type="button">
