@@ -25,9 +25,18 @@ function mixVec3(a: Vec3, b: Vec3, t: number): Vec3 {
 }
 
 type ShadowSettings = {
+  blindStrength: number
+  canopyStrength: number
+  contrast: number
   crispness: number
   density: number
+  depthMix: number
+  layerSpread: number
   opacity: number
+  resolution: number
+  sampleCount: number
+  samplerX: number
+  samplerY: number
   scale: number
   speed: number
   strength: number
@@ -57,6 +66,8 @@ type ShadowLayerComponent = ComponentType<{
 }>
 
 type DebugPanelTab = 'shadow' | 'type' | 'logs'
+type ShadowConfigTab = 'scene' | 'layers'
+type ShadowLayerTab = 'blinds' | 'canopy'
 type VisualSizeClass = 'mobilePortrait' | 'tabletPortrait' | 'desktop' | 'desktopWide'
 type AppliedVisualPreset = 'mobile' | 'desktop'
 type SunWidgetChoice = SunWidgetVariant | 'none'
@@ -407,7 +418,7 @@ function useAfterInteractiveShadowLayer(shouldLoad: boolean) {
     const loadShadowLayer = () => {
       emitDebugTimelineEvent('chunk requested')
 
-      void import('./V3ShadowLayer').then((module) => {
+      void import('./V2ShadowLayer').then((module) => {
         if (isCancelled) return
         emitDebugTimelineEvent('chunk loaded')
         setShadowLayer(() => module.default)
@@ -747,6 +758,8 @@ function DebugPanel({
   typeSettings: TypeSettings
 }) {
   const finalTime = Math.max(1, events.at(-1)?.time ?? 1)
+  const [shadowConfigTab, setShadowConfigTab] = useState<ShadowConfigTab>('scene')
+  const [shadowLayerTab, setShadowLayerTab] = useState<ShadowLayerTab>('blinds')
   const timeOfDayFraction =
     cycleTimeAtSunAngle(Math.PI - settings.sunAngle) / sunCycleDurationSeconds
 
@@ -806,6 +819,15 @@ function DebugPanel({
           </button>
         ))}
       </div>
+      <div className="shadow-map-buttons shadow-config-tabs" aria-label="Shadow config sections">
+        {(['scene', 'layers'] as const).map((tab) => (
+          <button aria-pressed={shadowConfigTab === tab} key={tab} onClick={() => setShadowConfigTab(tab)} type="button">
+            {tab}
+          </button>
+        ))}
+      </div>
+      {shadowConfigTab === 'scene' ? (
+        <>
       <div className="shadow-animation-controls">
         <label>
           <span>texture opacity</span>
@@ -833,6 +855,30 @@ function DebugPanel({
         </label>
       </div>
       <div className="shadow-animation-controls">
+        <label>
+          <span>depth mix</span>
+          <span>{settings.depthMix.toFixed(2)}</span>
+          <input
+            max="1"
+            min="0"
+            onChange={(event) => onSettingsChange({ ...settings, depthMix: Number(event.currentTarget.value) })}
+            step="0.01"
+            type="range"
+            value={settings.depthMix}
+          />
+        </label>
+        <label>
+          <span>layer spread</span>
+          <span>{settings.layerSpread.toFixed(2)}</span>
+          <input
+            max="2.5"
+            min="0.25"
+            onChange={(event) => onSettingsChange({ ...settings, layerSpread: Number(event.currentTarget.value) })}
+            step="0.05"
+            type="range"
+            value={settings.layerSpread}
+          />
+        </label>
         <label>
           <span>speed</span>
           <span>{settings.speed.toFixed(2)}</span>
@@ -879,7 +925,7 @@ function DebugPanel({
           <span>crispness</span>
           <span>{settings.crispness.toFixed(2)}</span>
           <input
-            max="6"
+            max="3"
             min="0.45"
             onChange={(event) => onSettingsChange({ ...settings, crispness: Number(event.currentTarget.value) })}
             step="0.05"
@@ -897,6 +943,18 @@ function DebugPanel({
             step="0.01"
             type="range"
             value={settings.opacity}
+          />
+        </label>
+        <label>
+          <span>contrast</span>
+          <span>{settings.contrast.toFixed(2)}</span>
+          <input
+            max="2.5"
+            min="0.3"
+            onChange={(event) => onSettingsChange({ ...settings, contrast: Number(event.currentTarget.value) })}
+            step="0.05"
+            type="range"
+            value={settings.contrast}
           />
         </label>
         <label>
@@ -923,7 +981,74 @@ function DebugPanel({
             value={settings.density}
           />
         </label>
+        <label>
+          <span>samples</span>
+          <span>{Math.round(settings.sampleCount)}</span>
+          <input
+            max="100"
+            min="24"
+            onChange={(event) => onSettingsChange({ ...settings, sampleCount: Number(event.currentTarget.value) })}
+            step="4"
+            type="range"
+            value={settings.sampleCount}
+          />
+        </label>
+        <label>
+          <span>resolution</span>
+          <span>{settings.resolution.toFixed(2)}</span>
+          <input
+            max="1.25"
+            min="0.35"
+            onChange={(event) => onSettingsChange({ ...settings, resolution: Number(event.currentTarget.value) })}
+            step="0.05"
+            type="range"
+            value={settings.resolution}
+          />
+        </label>
       </div>
+        </>
+      ) : null}
+      {shadowConfigTab === 'layers' ? (
+        <>
+          <div className="shadow-map-buttons shadow-layer-tabs" aria-label="Shadow layers">
+            {(['blinds', 'canopy'] as const).map((layer) => (
+              <button aria-pressed={shadowLayerTab === layer} key={layer} onClick={() => setShadowLayerTab(layer)} type="button">
+                {layer}
+              </button>
+            ))}
+          </div>
+          <div className="shadow-animation-controls">
+            {shadowLayerTab === 'blinds' ? (
+              <label>
+                <span>strength</span>
+                <span>{settings.blindStrength.toFixed(2)}</span>
+                <input
+                  max="1.5"
+                  min="0"
+                  onChange={(event) => onSettingsChange({ ...settings, blindStrength: Number(event.currentTarget.value) })}
+                  step="0.01"
+                  type="range"
+                  value={settings.blindStrength}
+                />
+              </label>
+            ) : null}
+            {shadowLayerTab === 'canopy' ? (
+              <label>
+                <span>strength</span>
+                <span>{settings.canopyStrength.toFixed(2)}</span>
+                <input
+                  max="1.5"
+                  min="0"
+                  onChange={(event) => onSettingsChange({ ...settings, canopyStrength: Number(event.currentTarget.value) })}
+                  step="0.01"
+                  type="range"
+                  value={settings.canopyStrength}
+                />
+              </label>
+            ) : null}
+          </div>
+        </>
+      ) : null}
         </>
       ) : null}
       {activeTab === 'type' ? (
