@@ -32,8 +32,14 @@ type ShadowSettings = {
   sunAngle: number
 }
 
-const maxShadowTextureDpr = 1
-const maxShadowTextureSize = 960
+const maxShadowTextureDpr = 1.5
+const maxShadowTextureSize = 1920
+// The kernel constants below (diskSize, min/max caster size) are tuned in
+// texels of the legacy caster map (dpr capped at 1, 960px cap). Higher-res
+// maps convert them through kernelScale so added resolution buys edge
+// granularity without changing the blur's on-screen size.
+const kernelBaselineDpr = 1
+const kernelBaselineSize = 960
 const diskSize = 80
 const diskSamples = 100
 const minShadowCasterSize = 20
@@ -64,6 +70,7 @@ uniform highp float uShadowContrast;
 uniform highp float uSunAngle;
 uniform highp float uWarpStrength;
 uniform highp float uDepthMix;
+uniform highp float uKernelScale;
 uniform highp float uLayerSpread;
 uniform highp float uShowSource;
 
@@ -85,7 +92,7 @@ vec3 rand(vec2 uv) {
 
 float sampleShadowLayer(vec2 animatedUv, float activeSamples, float edgeCrispness, vec2 lightDirection, vec2 lightPerpendicular, float radiusScale, float projectionScale) {
   float shadowInfluence = 0.0;
-  float sampleDiskSize = diskSize * radiusScale / edgeCrispness;
+  float sampleDiskSize = diskSize * uKernelScale * radiusScale / edgeCrispness;
 
   for (int i = 1; i <= diskSamples; i++) {
     if (float(i) > activeSamples) {
@@ -108,9 +115,9 @@ float sampleShadowLayer(vec2 animatedUv, float activeSamples, float edgeCrispnes
       float dist = length(offset);
       float size = color.r;
       size = (size * (maxSize - minSize)) + minSize;
-      size = size / edgeCrispness;
+      size = size * uKernelScale / edgeCrispness;
       if (size / 2.0 >= dist) {
-        shadowInfluence += mix(8.0, 0.5, size / maxSize) * color.b;
+        shadowInfluence += mix(8.0, 0.5, size / (maxSize * uKernelScale)) * color.b;
       }
     }
   }
@@ -163,10 +170,22 @@ function getShadowTextureSize(width: number, height: number, resolution: number)
   const dpr = Math.min(window.devicePixelRatio || 1, maxShadowTextureDpr)
   const maxTextureSize = maxShadowTextureSize * Math.max(0.25, resolution)
   const scale = Math.min(1, maxTextureSize / Math.max(width * dpr, height * dpr))
+  const textureWidth = Math.max(1, Math.round(width * dpr * scale))
+
+  // What the map width would have been under the legacy sizing the kernel
+  // constants were tuned against; the ratio rescales kernel texel sizes so
+  // the penumbra keeps its on-screen proportions on every device.
+  const legacyDpr = Math.min(window.devicePixelRatio || 1, kernelBaselineDpr)
+  const legacyScale = Math.min(
+    1,
+    (kernelBaselineSize * Math.max(0.25, resolution)) / Math.max(width * legacyDpr, height * legacyDpr),
+  )
+  const legacyWidth = Math.max(1, Math.round(width * legacyDpr * legacyScale))
 
   return {
     height: Math.max(1, Math.round(height * dpr * scale)),
-    width: Math.max(1, Math.round(width * dpr * scale)),
+    kernelScale: textureWidth / legacyWidth,
+    width: textureWidth,
   }
 }
 
@@ -444,7 +463,7 @@ function buildSourceScene(mode: ShadowMapMode, settings: ShadowSettings) {
   return scene
 }
 
-function sampleShadowSource(imageData: ImageData, settings: ShadowSettings) {
+function sampleShadowSource(imageData: ImageData, settings: ShadowSettings, kernelScale = 1) {
   const { data, height, width } = imageData
   const sampleX = width * settings.samplerX
   const sampleY = height * settings.samplerY
@@ -457,7 +476,7 @@ function sampleShadowSource(imageData: ImageData, settings: ShadowSettings) {
   let shadowInfluence = 0
   let contributingSamples = 0
   const activeSamples = Math.max(1, Math.min(diskSamples, Math.round(settings.sampleCount)))
-  const sampleDiskSize = diskSize / Math.max(0.25, settings.crispness)
+  const sampleDiskSize = (diskSize * kernelScale) / Math.max(0.25, settings.crispness)
 
   for (let index = 1; index <= activeSamples; index += 1) {
     const radius = sampleDiskSize * Math.sqrt(index / activeSamples)
@@ -477,12 +496,12 @@ function sampleShadowSource(imageData: ImageData, settings: ShadowSettings) {
     const casterSize = hitCaster
       ? (red / 255) * (maxShadowCasterSize - minShadowCasterSize) + minShadowCasterSize
       : 0
-    const crispCasterSize = casterSize / Math.max(0.25, settings.crispness)
+    const crispCasterSize = (casterSize * kernelScale) / Math.max(0.25, settings.crispness)
     const contributes = hitCaster && crispCasterSize / 2 >= radius
 
     if (contributes) {
       const sourceStrength = data[pixelIndex + 2] / 255
-      shadowInfluence += (8 + (0.5 - 8) * (crispCasterSize / maxShadowCasterSize)) * sourceStrength
+      shadowInfluence += (8 + (0.5 - 8) * (crispCasterSize / (maxShadowCasterSize * kernelScale))) * sourceStrength
       contributingSamples += 1
     }
 
@@ -531,7 +550,7 @@ function SourceSceneShadowPlane({ crispnessScale, mode, settings, shadowTint, sh
   const { gl, size } = useThree()
   const materialRef = useRef<THREE.ShaderMaterial>(null)
   const previewKeyRef = useRef('')
-  const { height: textureHeight, width: textureWidth } = getShadowTextureSize(size.width, size.height, settings.resolution)
+  const { height: textureHeight, kernelScale, width: textureWidth } = getShadowTextureSize(size.width, size.height, settings.resolution)
   const sourceCameraVerticalSpan = getSourceCameraVerticalSpan(size.width, size.height)
   const sourceCamera = useMemo(() => new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 10), [])
   const sourceScene = useMemo(() => buildSourceScene(mode, settings), [mode, settings])
@@ -556,6 +575,7 @@ function SourceSceneShadowPlane({ crispnessScale, mode, settings, shadowTint, sh
       uAnimationStrength: { value: settings.strength },
       uDepthMix: { value: settings.depthMix },
       uEdgeCrispness: { value: settings.crispness },
+      uKernelScale: { value: kernelScale },
       uLayerSpread: { value: settings.layerSpread },
       uSampleCount: { value: settings.sampleCount },
       uShadowContrast: { value: settings.contrast },
@@ -569,7 +589,7 @@ function SourceSceneShadowPlane({ crispnessScale, mode, settings, shadowTint, sh
       uWarpStrength: { value: mode === 'window' || mode === 'mixed' ? 0 : 1 },
       wSize: { value: textureWidth },
     }),
-    [mode, renderTarget.texture, settings.contrast, settings.crispness, settings.depthMix, settings.layerSpread, settings.sampleCount, settings.speed, settings.strength, settings.sunAngle, textureHeight, textureWidth],
+    [kernelScale, mode, renderTarget.texture, settings.contrast, settings.crispness, settings.depthMix, settings.layerSpread, settings.sampleCount, settings.speed, settings.strength, settings.sunAngle, textureHeight, textureWidth],
   )
 
   useEffect(() => {
@@ -618,6 +638,7 @@ function SourceSceneShadowPlane({ crispnessScale, mode, settings, shadowTint, sh
       materialRef.current.uniforms.uAnimationStrength.value = settings.strength
       materialRef.current.uniforms.uDepthMix.value = settings.depthMix
       materialRef.current.uniforms.uEdgeCrispness.value = settings.crispness * crispnessScale
+      materialRef.current.uniforms.uKernelScale.value = kernelScale
       materialRef.current.uniforms.uLayerSpread.value = settings.layerSpread
       materialRef.current.uniforms.uSampleCount.value = settings.sampleCount
       materialRef.current.uniforms.uShadowContrast.value = settings.contrast
@@ -652,7 +673,7 @@ function SourceSceneShadowPlane({ crispnessScale, mode, settings, shadowTint, sh
           dataUrl: preview.dataUrl,
           height: textureHeight,
           mode,
-          sampler: sampleShadowSource(preview.imageData, settings),
+          sampler: sampleShadowSource(preview.imageData, settings, kernelScale),
           width: textureWidth,
         })
       }
