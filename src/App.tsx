@@ -473,7 +473,6 @@ const backgroundFragmentShader = `
   uniform vec3 uCool;
   uniform float uGlowStrength;
   uniform float uSunAngle;
-  uniform float uGrainStrength;
 
   float hash(vec2 p) {
     p = fract(p * vec2(123.34, 456.21));
@@ -568,8 +567,10 @@ const backgroundFragmentShader = `
     nightPaper = mix(nightPaper, vec3(0.85, 0.88, 0.96), moonGlow * 0.38);
     color = mix(color, nightPaper, night);
 
-    color += (paperNoise - 0.5) * 0.035 * uGrainStrength;
-    color += (broadNoise - 0.5) * 0.025 * uGrainStrength;
+    // hairline dither only -- keeps the smooth gradient from banding at 8
+    // bits. Visible paper grain comes from the CSS surface-texture overlay;
+    // adding shader grain on top doubles it.
+    color += (paperNoise - 0.5) * 0.006;
 
     gl_FragColor = vec4(color, 1.0);
   }
@@ -592,26 +593,19 @@ function createShader(gl: WebGLRenderingContext, type: number, source: string) {
 }
 
 function BackgroundShader({
-  grainStrength,
   mode,
   sunAngle,
 }: {
-  grainStrength: number
   mode: BackgroundModeConfig
   sunAngle: number
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const sunAngleRef = useRef(sunAngle)
-  const grainStrengthRef = useRef(grainStrength)
   const [isVisible, setIsVisible] = useState(false)
 
   useEffect(() => {
     sunAngleRef.current = sunAngle
   }, [sunAngle])
-
-  useEffect(() => {
-    grainStrengthRef.current = grainStrength
-  }, [grainStrength])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -651,7 +645,6 @@ function BackgroundShader({
     const coolLocation = gl.getUniformLocation(program, 'uCool')
     const glowStrengthLocation = gl.getUniformLocation(program, 'uGlowStrength')
     const sunAngleLocation = gl.getUniformLocation(program, 'uSunAngle')
-    const grainStrengthLocation = gl.getUniformLocation(program, 'uGrainStrength')
     let frameId = 0
     let startTime = performance.now()
 
@@ -688,7 +681,6 @@ function BackgroundShader({
       gl.uniform3fv(coolLocation, mode.shader.cool)
       gl.uniform1f(glowStrengthLocation, mode.shader.glowStrength)
       gl.uniform1f(sunAngleLocation, sunAngleRef.current)
-      gl.uniform1f(grainStrengthLocation, grainStrengthRef.current)
       gl.drawArrays(gl.TRIANGLES, 0, 6)
 
       frameId = requestAnimationFrame(render)
@@ -1430,11 +1422,7 @@ function App() {
       }}
     >
       <div className="visual-scene-layer" aria-hidden="true">
-        <BackgroundShader
-          grainStrength={Math.min(1, textureSettings.opacity / siteVisualConfig.textureSettings.opacity)}
-          mode={backgroundMode}
-          sunAngle={effectiveSunAngle}
-        />
+        <BackgroundShader mode={backgroundMode} sunAngle={effectiveSunAngle} />
         {shadowCapability.enabled && ShadowLayer ? (
           <ShadowLayer
             crispnessScale={shadowCrispnessScale}
