@@ -40,6 +40,8 @@ type ShadowSettings = {
   layerSpread: number
   // warm light projected where casters don't block the sun (0 = shadows only)
   lightGlow: number
+  // visible shafts of light raymarched through the caster map toward the sun
+  lightRays: number
   opacity: number
   resolution: number
   sampleCount: number
@@ -988,6 +990,18 @@ function DebugPanel({
             step="0.05"
             type="range"
             value={settings.lightGlow}
+          />
+        </label>
+        <label>
+          <span>light rays</span>
+          <span>{settings.lightRays.toFixed(2)}</span>
+          <input
+            max="1.5"
+            min="0"
+            onChange={(event) => onSettingsChange({ ...settings, lightRays: Number(event.currentTarget.value) })}
+            step="0.05"
+            type="range"
+            value={settings.lightRays}
           />
         </label>
         <label>

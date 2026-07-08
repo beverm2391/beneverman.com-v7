@@ -26,6 +26,8 @@ type ShadowSettings = {
   layerSpread: number
   // warm light projected where casters don't block the sun (0 = shadows only)
   lightGlow: number
+  // visible shafts of light raymarched through the caster map toward the sun
+  lightRays: number
   opacity: number
   resolution: number
   sampleCount: number
@@ -81,6 +83,7 @@ uniform highp float uDepthMix;
 uniform highp float uKernelScale;
 uniform highp float uLayerSpread;
 uniform highp float uLightGlow;
+uniform highp float uLightRays;
 uniform highp float uOpacity;
 uniform highp float uShowSource;
 
@@ -181,7 +184,34 @@ void main() {
   float sunElevation = clamp(sin(uSunAngle), 0.0, 1.0);
   vec3 lightTint = mix(vec3(1.0, 0.87, 0.72), vec3(1.0, 0.96, 0.89), sunElevation);
   float shadowAlpha = clamp(uOpacity * combinedShadow, 0.0, 1.0);
-  float lightAlpha = clamp(uOpacity * uLightGlow * (1.0 - combinedShadow), 0.0, 1.0) * (1.0 - shadowAlpha);
+
+  // Light rays: march toward the sun through the caster map accumulating
+  // how much open sky this pixel can see, with weight decaying along the
+  // path. Where occluder structure surrounds a gap (a window aperture,
+  // canopy holes) the accumulation streaks out of the gap along the sun
+  // direction -- screen-space crepuscular shafts. On fully open paper it
+  // degenerates to a flat gain, which the glow term already covers.
+  float rays = 0.0;
+  if (uLightRays > 0.001) {
+    vec2 rayStep = lightDirection * 0.011;
+    vec2 rayUv = animatedUv + rayStep * rand(animatedUv * vec2(wSize, hSize)).x;
+    float weight = 1.0;
+    float accumulated = 0.0;
+    float weightTotal = 0.0;
+    for (int i = 0; i < 28; i++) {
+      rayUv += rayStep;
+      vec4 raySample = texture2D(uTexture, rayUv);
+      accumulated += (1.0 - raySample.g * raySample.b) * weight;
+      weightTotal += weight;
+      weight *= 0.92;
+    }
+    // rays reach into shadowed areas at reduced strength: light in the air
+    // above the page, not on it
+    rays = pow(clamp(accumulated / weightTotal, 0.0, 1.0), 1.7) * (1.0 - combinedShadow * 0.55);
+  }
+
+  float lightAmount = uLightGlow * (1.0 - combinedShadow) + uLightRays * rays;
+  float lightAlpha = clamp(uOpacity * lightAmount, 0.0, 1.0) * (1.0 - shadowAlpha);
   float alpha = shadowAlpha + lightAlpha;
   vec3 color = (uShadowTint * shadowAlpha + lightTint * lightAlpha) / max(alpha, 0.0001);
 
@@ -882,6 +912,7 @@ function SourceSceneShadowPlane({ crispnessScale, mode, settings, shadowTint, sh
       uKernelScale: { value: kernelScale },
       uLayerSpread: { value: settings.layerSpread },
       uLightGlow: { value: settings.lightGlow },
+      uLightRays: { value: settings.lightRays },
       uOpacity: { value: settings.opacity },
       uSampleCount: { value: settings.sampleCount },
       uShadowContrast: { value: settings.contrast },
@@ -896,7 +927,7 @@ function SourceSceneShadowPlane({ crispnessScale, mode, settings, shadowTint, sh
       uWarpStrength: { value: rigidWarpModes.has(mode) ? 0 : 1 },
       wSize: { value: textureWidth },
     }),
-    [kernelScale, mode, renderTarget.texture, settings.contrast, settings.crispness, settings.depthMix, settings.layerSpread, settings.lightGlow, settings.opacity, settings.sampleCount, settings.speed, settings.wind, settings.sunAngle, textureHeight, textureWidth],
+    [kernelScale, mode, renderTarget.texture, settings.contrast, settings.crispness, settings.depthMix, settings.layerSpread, settings.lightGlow, settings.lightRays, settings.opacity, settings.sampleCount, settings.speed, settings.wind, settings.sunAngle, textureHeight, textureWidth],
   )
 
   useEffect(() => {
@@ -988,6 +1019,7 @@ function SourceSceneShadowPlane({ crispnessScale, mode, settings, shadowTint, sh
       materialRef.current.uniforms.uKernelScale.value = kernelScale
       materialRef.current.uniforms.uLayerSpread.value = settings.layerSpread
       materialRef.current.uniforms.uLightGlow.value = settings.lightGlow
+      materialRef.current.uniforms.uLightRays.value = settings.lightRays
       materialRef.current.uniforms.uOpacity.value = settings.opacity
       materialRef.current.uniforms.uSampleCount.value = settings.sampleCount
       materialRef.current.uniforms.uShadowContrast.value = settings.contrast
