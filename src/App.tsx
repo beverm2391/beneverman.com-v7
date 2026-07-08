@@ -43,6 +43,8 @@ type ShadowSettings = {
   // visible shafts of light raymarched through the caster map toward the sun
   lightRays: number
   opacity: number
+  // lateral scatter of the ray march: 0 = crisp beams, 1 = wide soft bloom
+  rayDiffusion: number
   resolution: number
   sampleCount: number
   samplerX: number
@@ -996,12 +998,24 @@ function DebugPanel({
           <span>light rays</span>
           <span>{settings.lightRays.toFixed(2)}</span>
           <input
-            max="1.5"
+            max="4"
             min="0"
             onChange={(event) => onSettingsChange({ ...settings, lightRays: Number(event.currentTarget.value) })}
             step="0.05"
             type="range"
             value={settings.lightRays}
+          />
+        </label>
+        <label>
+          <span>ray diffusion</span>
+          <span>{settings.rayDiffusion.toFixed(2)}</span>
+          <input
+            max="1"
+            min="0"
+            onChange={(event) => onSettingsChange({ ...settings, rayDiffusion: Number(event.currentTarget.value) })}
+            step="0.05"
+            type="range"
+            value={settings.rayDiffusion}
           />
         </label>
         <label>

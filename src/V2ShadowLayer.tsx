@@ -29,6 +29,8 @@ type ShadowSettings = {
   // visible shafts of light raymarched through the caster map toward the sun
   lightRays: number
   opacity: number
+  // lateral scatter of the ray march: 0 = crisp beams, 1 = wide soft bloom
+  rayDiffusion: number
   resolution: number
   sampleCount: number
   samplerX: number
@@ -85,6 +87,7 @@ uniform highp float uLayerSpread;
 uniform highp float uLightGlow;
 uniform highp float uLightRays;
 uniform highp float uOpacity;
+uniform highp float uRayDiffusion;
 uniform highp float uShowSource;
 
 varying vec2 vTexCoord;
@@ -193,14 +196,21 @@ void main() {
   // degenerates to a flat gain, which the glow term already covers.
   float rays = 0.0;
   if (uLightRays > 0.001) {
-    vec2 rayStep = lightDirection * 0.011;
+    vec2 rayStep = lightDirection * 0.014;
     vec2 rayUv = animatedUv + rayStep * rand(animatedUv * vec2(wSize, hSize)).x;
     float weight = 1.0;
     float accumulated = 0.0;
     float weightTotal = 0.0;
     for (int i = 0; i < 28; i++) {
       rayUv += rayStep;
-      vec4 raySample = texture2D(uTexture, rayUv);
+      // diffusion scatters each march sample sideways off the ray axis, so
+      // beams blur laterally into a soft bloom instead of staying crisp;
+      // the per-step randomness averages out across the 28 samples
+      vec3 scatter = rand(rayUv * vec2(wSize, hSize) + vec2(float(i) * 1.93, 7.31));
+      vec2 sampleUv = rayUv
+        + lightPerpendicular * (scatter.y - 0.5) * 0.09 * uRayDiffusion
+        + lightDirection * (scatter.z - 0.5) * 0.03 * uRayDiffusion;
+      vec4 raySample = texture2D(uTexture, sampleUv);
       accumulated += (1.0 - raySample.g * raySample.b) * weight;
       weightTotal += weight;
       weight *= 0.92;
@@ -914,6 +924,7 @@ function SourceSceneShadowPlane({ crispnessScale, mode, settings, shadowTint, sh
       uLightGlow: { value: settings.lightGlow },
       uLightRays: { value: settings.lightRays },
       uOpacity: { value: settings.opacity },
+      uRayDiffusion: { value: settings.rayDiffusion },
       uSampleCount: { value: settings.sampleCount },
       uShadowContrast: { value: settings.contrast },
       uShadowTint: { value: [...shadowTint] },
@@ -927,7 +938,7 @@ function SourceSceneShadowPlane({ crispnessScale, mode, settings, shadowTint, sh
       uWarpStrength: { value: rigidWarpModes.has(mode) ? 0 : 1 },
       wSize: { value: textureWidth },
     }),
-    [kernelScale, mode, renderTarget.texture, settings.contrast, settings.crispness, settings.depthMix, settings.layerSpread, settings.lightGlow, settings.lightRays, settings.opacity, settings.sampleCount, settings.speed, settings.wind, settings.sunAngle, textureHeight, textureWidth],
+    [kernelScale, mode, renderTarget.texture, settings.contrast, settings.crispness, settings.depthMix, settings.layerSpread, settings.lightGlow, settings.lightRays, settings.opacity, settings.rayDiffusion, settings.sampleCount, settings.speed, settings.wind, settings.sunAngle, textureHeight, textureWidth],
   )
 
   useEffect(() => {
@@ -1021,6 +1032,7 @@ function SourceSceneShadowPlane({ crispnessScale, mode, settings, shadowTint, sh
       materialRef.current.uniforms.uLightGlow.value = settings.lightGlow
       materialRef.current.uniforms.uLightRays.value = settings.lightRays
       materialRef.current.uniforms.uOpacity.value = settings.opacity
+      materialRef.current.uniforms.uRayDiffusion.value = settings.rayDiffusion
       materialRef.current.uniforms.uSampleCount.value = settings.sampleCount
       materialRef.current.uniforms.uShadowContrast.value = settings.contrast
       materialRef.current.uniforms.uShadowTint.value = shadowTint
