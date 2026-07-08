@@ -1,9 +1,14 @@
 import type { ShadowMapMode } from '../shadowMapModes'
 
 export type LabScene = {
+  config: LabSceneConfig
   id: ShadowMapMode
   layers: LabLayer[]
   name: string
+}
+
+export type LabSceneConfig = {
+  sunAngle: number
 }
 
 export type TextLayerConfig = {
@@ -36,16 +41,19 @@ export function buildLabScene({
   sceneId,
   shadowEnabled,
   shadowPresetId,
+  sunAngle,
   textEnabled,
   textOpacity,
 }: {
   sceneId: ShadowMapMode
   shadowEnabled: boolean
   shadowPresetId: ShadowMapMode
+  sunAngle: number
   textEnabled: boolean
   textOpacity: number
 }): LabScene {
   return {
+    config: { sunAngle },
     id: sceneId,
     layers: [
       {

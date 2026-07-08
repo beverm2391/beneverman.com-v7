@@ -32,7 +32,6 @@ type LabShellProps = {
   setSunAngle: (value: number) => void
   setTextOpacity: (value: number) => void
   shadowSettings: ShadowSettings
-  sunAngle: number
 }
 
 function sliderValue(value: number | readonly number[], fallback: number) {
@@ -52,7 +51,6 @@ export function LabShell({
   setSunAngle,
   setTextOpacity,
   shadowSettings,
-  sunAngle,
 }: LabShellProps) {
   const [isInspectorOpen, setIsInspectorOpen] = useState(true)
 
@@ -95,7 +93,35 @@ export function LabShell({
         <section className={isInspectorOpen ? 'lab__stage' : 'lab__stage is-inspector-collapsed'}>
           {isInspectorOpen ? (
             <aside className="lab__inspector" aria-label="Layer controls">
-              <Accordion className="lab__accordion" defaultValue={scene.layers.map((layer) => layer.id)}>
+              <Accordion className="lab__accordion" defaultValue={['scene', ...scene.layers.map((layer) => layer.id)]}>
+                <AccordionItem className="lab__accordion-item" value="scene">
+                  <AccordionTrigger className="lab__accordion-trigger">
+                    <span className="lab__layer-trigger-title">Scene config</span>
+                    <Badge size="sm" variant="outline">
+                      {scene.config.sunAngle.toFixed(2)}
+                    </Badge>
+                  </AccordionTrigger>
+                  <AccordionPanel className="lab__accordion-panel">
+                    <div className="lab__control-stack">
+                      <label className="lab__control">
+                        <span className="lab__control-label">
+                          <span>Sun angle</span>
+                          <Badge size="sm" variant="outline">
+                            {scene.config.sunAngle.toFixed(2)}
+                          </Badge>
+                        </span>
+                        <Slider
+                          max={Math.PI * 2}
+                          min={0}
+                          onValueChange={(value) => setSunAngle(sliderValue(value, scene.config.sunAngle))}
+                          step={0.01}
+                          value={[scene.config.sunAngle]}
+                        />
+                      </label>
+                    </div>
+                  </AccordionPanel>
+                </AccordionItem>
+
                 {scene.layers.map((layer) => (
                   <AccordionItem className="lab__accordion-item" key={layer.id} value={layer.id}>
                     <AccordionTrigger className="lab__accordion-trigger">
@@ -141,16 +167,6 @@ export function LabShell({
                               </button>
                             ))}
                           </div>
-
-                          <label className="lab__control">
-                            <span className="lab__control-label">
-                              <span>Sun angle</span>
-                              <Badge size="sm" variant="outline">
-                                {sunAngle.toFixed(2)}
-                              </Badge>
-                            </span>
-                            <Slider max={Math.PI * 2} min={0} onValueChange={(value) => setSunAngle(sliderValue(value, sunAngle))} step={0.01} value={[sunAngle]} />
-                          </label>
 
                           {controls.map((control) => (
                             <label className="lab__control" key={control.key}>

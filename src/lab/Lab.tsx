@@ -65,10 +65,11 @@ export default function Lab() {
         sceneId: resolvedSceneId,
         shadowEnabled: readEnabled(searchParams, 'shadow'),
         shadowPresetId,
+        sunAngle,
         textEnabled: readEnabled(searchParams, 'text'),
         textOpacity,
       }),
-    [resolvedSceneId, searchParams, shadowPresetId, textOpacity],
+    [resolvedSceneId, searchParams, shadowPresetId, sunAngle, textOpacity],
   )
 
   if (!isValidScene(sceneId)) {
@@ -93,7 +94,7 @@ export default function Lab() {
   })
 
   const copyJson = () => {
-    navigator.clipboard?.writeText(JSON.stringify({ scene, shadowSettings, sunAngle }, null, 2))
+    navigator.clipboard?.writeText(JSON.stringify({ scene, shadowSettings }, null, 2))
   }
 
   return (
@@ -109,7 +110,6 @@ export default function Lab() {
       setSunAngle={(value) => setQuery('sun', value)}
       setTextOpacity={(value) => setQuery('textOpacity', value)}
       shadowSettings={shadowSettings}
-      sunAngle={sunAngle}
     >
       {scene.layers.map((layer) => {
         if (!layer.enabled) return null
@@ -132,7 +132,7 @@ export default function Lab() {
               opacityScale={1}
               settings={shadowSettings}
               shadowTint={NEUTRAL_TINT}
-              sunAngle={sunAngle}
+              sunAngle={scene.config.sunAngle}
             />
           </div>
         )
