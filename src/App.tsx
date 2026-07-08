@@ -38,6 +38,8 @@ type ShadowSettings = {
   density: number
   depthMix: number
   layerSpread: number
+  // warm light projected where casters don't block the sun (0 = shadows only)
+  lightGlow: number
   opacity: number
   resolution: number
   sampleCount: number
@@ -974,6 +976,18 @@ function DebugPanel({
             step="0.01"
             type="range"
             value={settings.opacity}
+          />
+        </label>
+        <label>
+          <span>light glow</span>
+          <span>{settings.lightGlow.toFixed(2)}</span>
+          <input
+            max="1.5"
+            min="0"
+            onChange={(event) => onSettingsChange({ ...settings, lightGlow: Number(event.currentTarget.value) })}
+            step="0.05"
+            type="range"
+            value={settings.lightGlow}
           />
         </label>
         <label>

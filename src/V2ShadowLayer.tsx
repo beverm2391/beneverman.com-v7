@@ -24,6 +24,8 @@ type ShadowSettings = {
   density: number
   depthMix: number
   layerSpread: number
+  // warm light projected where casters don't block the sun (0 = shadows only)
+  lightGlow: number
   opacity: number
   resolution: number
   sampleCount: number
@@ -78,6 +80,8 @@ uniform highp float uWarpStrength;
 uniform highp float uDepthMix;
 uniform highp float uKernelScale;
 uniform highp float uLayerSpread;
+uniform highp float uLightGlow;
+uniform highp float uOpacity;
 uniform highp float uShowSource;
 
 varying vec2 vTexCoord;
@@ -166,9 +170,22 @@ void main() {
   float farWeight = mix(0.16, 0.48, depthMix);
   float combinedShadow = 1.0 - ((1.0 - nearLayer * nearWeight) * (1.0 - midLayer * midWeight) * (1.0 - farLayer * farWeight));
   combinedShadow = clamp(combinedShadow, 0.0, 0.96);
-  vec3 color = mix(vec3(1.0), uShadowTint, combinedShadow);
 
-  gl_FragColor = vec4(color, 1.0);
+  // Light projection: instead of a flat white veil over unshadowed paper,
+  // unoccluded areas contribute a warm glow whose tint deepens toward amber
+  // as the sun drops. Shadow and light composite here with per-pixel alpha,
+  // which against a near-white page is equivalent to a screen-blended light
+  // pass without paying for a second render of the caster scene. Color is
+  // straight (unpremultiplied): the material's normal blending multiplies by
+  // alpha on the way into the drawing buffer.
+  float sunElevation = clamp(sin(uSunAngle), 0.0, 1.0);
+  vec3 lightTint = mix(vec3(1.0, 0.87, 0.72), vec3(1.0, 0.96, 0.89), sunElevation);
+  float shadowAlpha = clamp(uOpacity * combinedShadow, 0.0, 1.0);
+  float lightAlpha = clamp(uOpacity * uLightGlow * (1.0 - combinedShadow), 0.0, 1.0) * (1.0 - shadowAlpha);
+  float alpha = shadowAlpha + lightAlpha;
+  vec3 color = (uShadowTint * shadowAlpha + lightTint * lightAlpha) / max(alpha, 0.0001);
+
+  gl_FragColor = vec4(color, alpha);
 }
 `
 
@@ -864,6 +881,8 @@ function SourceSceneShadowPlane({ crispnessScale, mode, settings, shadowTint, sh
       uEdgeCrispness: { value: settings.crispness },
       uKernelScale: { value: kernelScale },
       uLayerSpread: { value: settings.layerSpread },
+      uLightGlow: { value: settings.lightGlow },
+      uOpacity: { value: settings.opacity },
       uSampleCount: { value: settings.sampleCount },
       uShadowContrast: { value: settings.contrast },
       uShadowTint: { value: [...shadowTint] },
@@ -877,7 +896,7 @@ function SourceSceneShadowPlane({ crispnessScale, mode, settings, shadowTint, sh
       uWarpStrength: { value: rigidWarpModes.has(mode) ? 0 : 1 },
       wSize: { value: textureWidth },
     }),
-    [kernelScale, mode, renderTarget.texture, settings.contrast, settings.crispness, settings.depthMix, settings.layerSpread, settings.sampleCount, settings.speed, settings.wind, settings.sunAngle, textureHeight, textureWidth],
+    [kernelScale, mode, renderTarget.texture, settings.contrast, settings.crispness, settings.depthMix, settings.layerSpread, settings.lightGlow, settings.opacity, settings.sampleCount, settings.speed, settings.wind, settings.sunAngle, textureHeight, textureWidth],
   )
 
   useEffect(() => {
@@ -955,6 +974,10 @@ function SourceSceneShadowPlane({ crispnessScale, mode, settings, shadowTint, sh
     gl.clear()
     gl.render(sourceScene, sourceCamera)
     gl.setRenderTarget(null)
+    // restore the transparent clear for the visible pass: the fullscreen
+    // quad now carries per-pixel alpha, so an opaque black clear would show
+    // through everywhere the page should be bare paper
+    gl.setClearColor(0xf2f0ee, 0)
 
     if (materialRef.current) {
       materialRef.current.uniforms.uTime.value = clock.elapsedTime
@@ -964,6 +987,8 @@ function SourceSceneShadowPlane({ crispnessScale, mode, settings, shadowTint, sh
       materialRef.current.uniforms.uEdgeCrispness.value = settings.crispness * crispnessScale
       materialRef.current.uniforms.uKernelScale.value = kernelScale
       materialRef.current.uniforms.uLayerSpread.value = settings.layerSpread
+      materialRef.current.uniforms.uLightGlow.value = settings.lightGlow
+      materialRef.current.uniforms.uOpacity.value = settings.opacity
       materialRef.current.uniforms.uSampleCount.value = settings.sampleCount
       materialRef.current.uniforms.uShadowContrast.value = settings.contrast
       materialRef.current.uniforms.uShadowTint.value = shadowTint
@@ -1042,7 +1067,9 @@ export default function V2ShadowLayer({ crispnessScale, mode, opacityScale, sett
     <div
       className={`daylight-shadow-layer ${isVisible ? 'is-visible' : ''}`}
       aria-hidden="true"
-      style={{ ['--shadow-opacity' as string]: showSource ? 1 : settings.opacity * opacityScale }}
+      // settings.opacity now lives inside the shader (uOpacity) so light and
+      // shadow can carry per-pixel alpha; CSS only applies the day-cycle fade
+      style={{ ['--shadow-opacity' as string]: showSource ? 1 : opacityScale }}
     >
       <Canvas
         camera={{ position: [0, 0, 1], near: 0.1, far: 10 }}
