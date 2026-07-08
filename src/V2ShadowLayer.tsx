@@ -50,6 +50,7 @@ const diskSamples = 100
 const minShadowCasterSize = 20
 const maxShadowCasterSize = 300
 const desktopShadowAspect = 16 / 9
+const rigidWarpModes = new Set<ShadowMapMode>(['window', 'mixed', 'pool', 'tower', 'sun'])
 
 const shadowVertexShader = `
   varying vec2 vTexCoord;
@@ -546,6 +547,180 @@ function addBranch(scene: THREE.Scene, leafGeometry: THREE.BufferGeometry, setti
   }
 }
 
+// Light pool: the inverse of every other scene. Instead of casters scattered
+// on clean paper, a translucent "wall" covers the whole page with one
+// window-shaped aperture cut out, so the unshadowed hole reads as a warm
+// patch of sunlight lying on the floor -- how a real room actually looks.
+// Muntin bars cross the aperture so the pool reads as a window, and a single
+// sprig intrudes on one corner for life. useFrame slides the whole group
+// horizontally with the animated sun.
+function addLightPool(scene: THREE.Scene, leafGeometries: THREE.BufferGeometry[], settings: ShadowSettings) {
+  const pool = new THREE.Group()
+  pool.name = 'lightpool'
+
+  // authored against the default preset scale (1.4); normalize so the scale
+  // slider grows/shrinks the aperture around the same composition
+  const scale = settings.scale / 1.4
+  // wall strength stays low: the entire text ground sits under this wash, so
+  // it must darken gently -- the pool's brightness is contrast, not glare
+  const wallStrength = 0.34
+  const wallDepth = 0.22
+
+  const wall = new THREE.Shape()
+  wall.moveTo(-4, -4)
+  wall.lineTo(4, -4)
+  wall.lineTo(4, 4)
+  wall.lineTo(-4, 4)
+  wall.closePath()
+
+  // perspective-skewed window projection, center-right so the text column
+  // sits on the calm wash while the pool anchors the open side of the page
+  const corners: [number, number][] = [
+    [-0.02 * scale + 0.14, -0.86 * scale - 0.04],
+    [0.84 * scale + 0.14, -0.68 * scale - 0.04],
+    [1.0 * scale + 0.14, 0.5 * scale - 0.04],
+    [0.16 * scale + 0.14, 0.32 * scale - 0.04],
+  ]
+  const hole = new THREE.Path()
+  hole.moveTo(corners[0][0], corners[0][1])
+  for (const [x, y] of corners.slice(1)) hole.lineTo(x, y)
+  hole.closePath()
+  wall.holes.push(hole)
+
+  const wallMesh = new THREE.Mesh(new THREE.ShapeGeometry(wall), makeCasterMaterial(wallDepth, wallStrength))
+  pool.add(wallMesh)
+
+  // muntin bars connect opposite edge midpoints so the four panes track the
+  // aperture's skew instead of sitting axis-aligned inside it
+  const midpoint = (a: [number, number], b: [number, number]): [number, number] => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
+  const addBar = (from: [number, number], to: [number, number]) => {
+    const length = Math.hypot(to[0] - from[0], to[1] - from[1])
+    addRect(
+      pool,
+      (from[0] + to[0]) / 2,
+      (from[1] + to[1]) / 2,
+      length,
+      0.045 * scale,
+      wallDepth - 0.06,
+      Math.atan2(to[1] - from[1], to[0] - from[0]),
+      wallStrength + 0.2,
+    )
+  }
+  addBar(midpoint(corners[0], corners[1]), midpoint(corners[2], corners[3]))
+  addBar(midpoint(corners[1], corners[2]), midpoint(corners[3], corners[0]))
+
+  // one leaf spray hanging into the pool's top corner: the small proof that
+  // there is a world outside the window
+  addSprig(
+    pool,
+    leafGeometries,
+    corners[3][0] + 0.04,
+    corners[3][1] + 0.05,
+    -0.85,
+    0.05 * settings.scale,
+    0.1,
+    wallStrength + 0.28,
+    9001,
+  )
+
+  scene.add(pool)
+}
+
+// Sheer curtain: two parted fabric panels built from overlapping vertical
+// fold strips. Strips are translucent (low blue-channel strength) so the
+// page reads through the fabric, and the parted gap down the middle is the
+// bright slit of light. Motion is real mesh animation in useFrame -- each
+// strip sways with its own phase, hardest at the free edges near the gap --
+// layered under the shader's UV warp for the slow billow.
+function addCurtain(scene: THREE.Scene, settings: ShadowSettings) {
+  const curtain = new THREE.Group()
+  curtain.name = 'curtain'
+
+  const panels = [
+    { from: -1.18, gapEdge: -0.14, to: -0.14 },
+    { from: 0.14, gapEdge: 0.14, to: 1.18 },
+  ]
+
+  let strip = 0
+  for (const panel of panels) {
+    const stripCount = getDensityCount(11, settings.density)
+    for (let index = 0; index < stripCount; index += 1) {
+      const t = stripCount === 1 ? 0.5 : index / (stripCount - 1)
+      const seed = 5100 + strip * 37
+      const x = panel.from + (panel.to - panel.from) * t
+      const width = (0.075 + stableNoise(seed) * 0.07) * settings.scale
+      // alternating fold strengths are what make it read as hanging fabric
+      // rather than a flat tinted band
+      const strength = 0.14 + stableNoise(seed + 3) * 0.26
+      const depth = 0.2 + stableNoise(seed + 5) * 0.14
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, 3.6), makeCasterMaterial(depth, strength))
+      mesh.position.set(x, 0, 0)
+      mesh.rotation.z = (stableNoise(seed + 7) - 0.5) * 0.05
+      mesh.userData = {
+        // free edges near the parted gap sway hardest, like curtain ends in
+        // a breeze; strips near the outer rod barely move
+        amp: 0.012 + 0.055 * (1 - Math.min(1, Math.abs(x - panel.gapEdge) / 1.05)) ** 2,
+        baseRotation: mesh.rotation.z,
+        baseX: x,
+        phase: stableNoise(seed + 11) * Math.PI * 2,
+      }
+      curtain.add(mesh)
+      strip += 1
+    }
+  }
+
+  scene.add(curtain)
+}
+
+// Sundial monument: one distinct silhouette -- a water tower -- whose shadow
+// pivots around its base as the animated sun sweeps the day. This is the one
+// scene where the sun's movement over time is unmistakable. The silhouette
+// is authored pointing up local +y from the group origin (the base on the
+// ground); useFrame rotates it about that origin and stretches it long at
+// sunrise/sunset, short at noon. The r-channel height climbs with distance
+// from the base so the shadow's tip blurs out like a real long shadow.
+function addTower(scene: THREE.Scene, settings: ShadowSettings) {
+  const tower = new THREE.Group()
+  tower.name = 'tower'
+
+  // the display path mirrors scene y (the caster map is sampled with a
+  // flipped v), so the silhouette is authored extending local -y from the
+  // group origin and anchored at scene y=+1 to sit on the screen's bottom
+  // edge. Rotations negate under the same mirror.
+
+  // splayed legs + braces
+  addRect(tower, -0.075, -0.21, 0.024, 0.46, 0.06, -0.1)
+  addRect(tower, 0.075, -0.21, 0.024, 0.46, 0.06, 0.1)
+  addRect(tower, 0, -0.15, 0.17, 0.016, 0.07, 0)
+  addRect(tower, 0, -0.29, 0.16, 0.013, 0.09, 0.55)
+  addRect(tower, 0, -0.29, 0.16, 0.013, 0.09, -0.55)
+
+  // tank with rounded shoulders
+  addRect(tower, 0, -0.53, 0.3, 0.19, 0.2, 0)
+  const tankTop = new THREE.Mesh(new THREE.CircleGeometry(1, 32), makeCasterMaterial(0.24))
+  tankTop.position.set(0, -0.62, 0)
+  tankTop.scale.set(0.15, 0.06, 1)
+  tower.add(tankTop)
+
+  // conical roof + finial
+  const roofShape = new THREE.Shape()
+  roofShape.moveTo(-0.16, -0.63)
+  roofShape.lineTo(0.16, -0.63)
+  roofShape.lineTo(0, -0.84)
+  roofShape.closePath()
+  const roof = new THREE.Mesh(new THREE.ShapeGeometry(roofShape), makeCasterMaterial(0.3))
+  tower.add(roof)
+  addRect(tower, 0, -0.87, 0.012, 0.09, 0.34, 0)
+
+  // rotation in useFrame pivots about the group origin, i.e. where the tower
+  // meets the ground at the bottom of the frame
+  tower.position.set(-0.05, 1.0, 0)
+  tower.scale.setScalar(1.1 * settings.scale)
+  tower.userData = { baseScale: 1.1 * settings.scale }
+
+  scene.add(tower)
+}
+
 function buildSourceScene(mode: ShadowMapMode, settings: ShadowSettings) {
   const scene = new THREE.Scene()
   const leafGeometries =
@@ -564,6 +739,11 @@ function buildSourceScene(mode: ShadowMapMode, settings: ShadowSettings) {
     addWindow(scene, settings, settings.blindStrength)
     addCanopy(scene, leafGeometries, settings, settings.canopyStrength)
   }
+  if (mode === 'pool') addLightPool(scene, leafGeometries, settings)
+  if (mode === 'curtain') addCurtain(scene, settings)
+  if (mode === 'tower') addTower(scene, settings)
+  // 'sun' builds nothing: clean paper, background glow only -- the floor of
+  // minimal, kept as a selectable reference point
   if (mode === 'blobs') {
     createBlobLSystemSource(settings.density).blobs.forEach((blob) => {
       addEllipse(
@@ -707,9 +887,10 @@ function SourceSceneShadowPlane({ crispnessScale, mode, settings, shadowTint, sh
       uSunAngle: { value: settings.sunAngle },
       uTexture: { value: renderTarget.texture },
       uTime: { value: 0 },
-      // mixed gets zero texture warp: the blinds must stay rigid, and the
-      // canopy's motion comes from real mesh animation in useFrame instead
-      uWarpStrength: { value: mode === 'window' || mode === 'mixed' ? 0 : 1 },
+      // rigid modes get zero texture warp: blinds must stay straight, and the
+      // pool/tower scenes move via authored useFrame animation instead --
+      // a UV-warped sundial or light patch reads as jelly, not sunlight
+      uWarpStrength: { value: rigidWarpModes.has(mode) ? 0 : 1 },
       wSize: { value: textureWidth },
     }),
     [kernelScale, mode, renderTarget.texture, settings.contrast, settings.crispness, settings.depthMix, settings.layerSpread, settings.sampleCount, settings.speed, settings.wind, settings.sunAngle, textureHeight, textureWidth],
@@ -730,6 +911,9 @@ function SourceSceneShadowPlane({ crispnessScale, mode, settings, shadowTint, sh
   useFrame(({ clock }) => {
     const animatedTime = clock.elapsedTime * settings.speed
     const canopyGroup = sourceScene.getObjectByName('canopy')
+    const curtainGroup = sourceScene.getObjectByName('curtain')
+    const towerGroup = sourceScene.getObjectByName('tower')
+    const poolGroup = sourceScene.getObjectByName('lightpool')
 
     if (canopyGroup) {
       // Hierarchical wind: each foliage clump sways with its own phase --
@@ -743,6 +927,33 @@ function SourceSceneShadowPlane({ crispnessScale, mode, settings, shadowTint, sh
         clump.position.x = baseX + Math.sin(animatedTime * 0.21 + phase) * 0.016 * settings.wind
         clump.position.y = baseY + Math.cos(animatedTime * 0.27 + phase * 1.4) * 0.009 * settings.wind
       }
+    } else if (curtainGroup) {
+      // per-strip fabric sway: two incommensurate sine terms so the folds
+      // ripple rather than rock in unison
+      for (const strip of curtainGroup.children) {
+        const { amp, baseRotation, baseX, phase } = strip.userData
+        strip.position.x =
+          baseX +
+          (Math.sin(animatedTime * 0.5 + phase) + Math.sin(animatedTime * 1.35 + phase * 2.1) * 0.45) *
+            amp *
+            settings.wind
+        strip.rotation.z = baseRotation + Math.sin(animatedTime * 0.72 + phase) * 0.012 * settings.wind
+      }
+    } else if (towerGroup) {
+      // sundial: pivot the shadow about the tower's base opposite the sun's
+      // travel, long at sunrise/sunset and short at noon. sunAngle is the
+      // live animated angle, so the shadow visibly sweeps over the day.
+      // Scene rotation is the negative of the on-screen rotation because of
+      // the display mirror described in addTower.
+      // 0.72 keeps the sweep inside the frame: a physically flat sunrise
+      // shadow would lie along the bottom edge where nothing can see it
+      const elevation = Math.max(0, Math.sin(sunAngle))
+      towerGroup.rotation.z = (sunAngle - Math.PI / 2) * 0.72
+      towerGroup.scale.y = towerGroup.userData.baseScale * (1.55 - 0.75 * elevation)
+    } else if (poolGroup) {
+      // the light patch creeps across the floor opposite the sun's travel,
+      // slow enough that it never wanders into the text column
+      poolGroup.position.x = (sunAngle - settings.sunAngle) * 0.18
     } else {
       sourceScene.position.x = Math.sin(animatedTime * 0.16) * 0.035 * settings.wind
       sourceScene.position.y = Math.cos(animatedTime * 0.12) * 0.025 * settings.wind
@@ -768,7 +979,7 @@ function SourceSceneShadowPlane({ crispnessScale, mode, settings, shadowTint, sh
       materialRef.current.uniforms.uShadowTint.value = shadowTint
       materialRef.current.uniforms.uShowSource.value = showSource ? 1 : 0
       materialRef.current.uniforms.uSunAngle.value = sunAngle
-      materialRef.current.uniforms.uWarpStrength.value = mode === 'window' || mode === 'mixed' ? 0 : 1
+      materialRef.current.uniforms.uWarpStrength.value = rigidWarpModes.has(mode) ? 0 : 1
     }
 
     const previewKey = [
