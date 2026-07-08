@@ -3,6 +3,7 @@ import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
 import { siteVisualConfig } from '../siteVisualConfig'
 import { shadowMapModes, type ShadowMapMode } from '../shadowMapModes'
 import V2ShadowLayer, { type ShadowSettings } from '../V2ShadowLayer'
+import './coss.css'
 import './Lab.css'
 
 // The lab is a dev-only shader/scene workshop. It is lazy-loaded and excluded
