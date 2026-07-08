@@ -115,6 +115,7 @@
   display: grid;
   grid-template-columns: minmax(15rem, 18rem) minmax(0, 1fr);
   gap: 0.7rem;
+  transition: grid-template-columns 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .lab__stage.is-inspector-collapsed {
@@ -139,28 +140,63 @@
   box-shadow: none;
   overflow: hidden;
   transition:
-    opacity 160ms ease,
-    transform 160ms ease;
+    opacity 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.lab__tree {
+.lab__accordion {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+}
+
+.lab__accordion-item {
+  border: 0;
+}
+
+.lab__accordion-trigger {
+  min-height: 1.9rem;
+  align-items: center;
+  padding: 0.2rem 0.2rem;
+  border-radius: 0.45rem;
+  color: rgb(255 255 255 / 0.74);
+  font-size: 0.72rem;
+  transition:
+    background 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    color 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.lab__accordion-trigger:hover,
+.lab__accordion-trigger[data-panel-open] {
+  background: rgb(255 255 255 / 0.06);
+  color: rgb(255 255 255 / 0.9);
+}
+
+.lab__accordion-trigger > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.lab__accordion-trigger svg {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+.lab__accordion-panel {
+  padding: 0.15rem 0 0.45rem;
+}
+
+.lab__config-accordion {
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 0.15rem;
 }
 
 .lab__tree-section {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-}
-
-.lab__tree-kicker {
-  padding: 0.25rem 0.15rem 0.1rem;
-  color: rgb(255 255 255 / 0.38);
-  font-size: 0.62rem;
-  font-weight: 700;
-  text-transform: uppercase;
 }
 
 .lab__tree-row {
@@ -177,6 +213,9 @@
   color: rgb(255 255 255 / 0.7);
   font: inherit;
   text-align: left;
+  transition:
+    background 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    color 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .lab__tree-row:hover,
@@ -204,6 +243,12 @@
   height: 0.85rem;
 }
 
+.lab__tree-meta {
+  color: rgb(255 255 255 / 0.42);
+  font-size: 0.66rem;
+  font-weight: 650;
+}
+
 .lab__layer-dot {
   width: 0.38rem;
   height: 0.38rem;
@@ -224,6 +269,9 @@
   font: inherit;
   font-size: 0.65rem;
   font-weight: 700;
+  transition:
+    background 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    color 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .lab__layer-toggle.is-on {
@@ -279,6 +327,10 @@
   font: inherit;
   font-size: 0.68rem;
   font-weight: 700;
+  transition:
+    background 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .lab__preset-chip:hover,
@@ -287,10 +339,19 @@
   color: #101012;
 }
 
+.lab__preset-chip:hover {
+  transform: translateY(-1px);
+}
+
 .lab__control {
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
+  transition: opacity 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.lab__control[data-muted='true'] {
+  opacity: 0.46;
 }
 
 .lab__control-label {
@@ -307,6 +368,38 @@
   border-color: rgb(255 255 255 / 0.1);
   background: rgb(255 255 255 / 0.08);
   color: rgb(255 255 255 / 0.82);
+}
+
+.lab__switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: rgb(255 255 255 / 0.72);
+  font-size: 0.72rem;
+}
+
+.lab__switch-row > span {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.lab__switch-row strong {
+  font-size: 0.72rem;
+}
+
+.lab__switch-row small {
+  color: rgb(255 255 255 / 0.42);
+  font-size: 0.65rem;
+}
+
+.lab__switch-row [data-slot='switch'] {
+  background: rgb(255 255 255 / 0.14);
+}
+
+.lab__switch-row [data-slot='switch'][data-checked] {
+  background: rgb(255 255 255 / 0.9);
 }
 
 .lab__viewer-wrap {
@@ -363,8 +456,7 @@
   font-family: var(--font-sans);
   font-weight: 760;
   letter-spacing: 0;
-  line-height: 0.94;
-  text-transform: lowercase;
+  line-height: 1.02;
 }
 
 .lab__text-layer span {

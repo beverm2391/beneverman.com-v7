@@ -12,6 +12,7 @@ import {
   subscribeShadowSourcePreview,
   type ShadowSourcePreview,
 } from './shadowSourcePreview'
+import { homepageIntroCopy } from './homeCopy'
 import { siteVisualConfig } from './siteVisualConfig'
 import { SunIconLab } from './SunIconLab'
 import { getShadowFactor, SunWidget, sunWidgetVariants, type SunWidgetVariant } from './SunWidget'
@@ -1512,30 +1513,28 @@ function App() {
       )}
       {isSourceView ? null : (
       <section className="intro" aria-label="About Ben Everman">
-        <p className="name">Ben Everman</p>
+        <p className="name">{homepageIntroCopy.name}</p>
         <p>
-          I'm currently working as a software engineer at Tekmir, where we're building an end-to-end
-          platform for mass-action litigation.
+          {homepageIntroCopy.work}
         </p>
         <p>
-          In my free time, I like to work on technical projects like LLM inference optimization, model
-          interpretability, shaders, AI tooling, and the like.
+          {homepageIntroCopy.projects}
         </p>
         <p>
-          On any given day, you can probably find me working at one of my favorite coffee shops in Atlanta.
+          {homepageIntroCopy.atlanta}
         </p>
         <p>
-          Most of my experiments are colocated under{' '}
+          {homepageIntroCopy.experimentsPrefix}{' '}
           <a href="https://www.bencorp.dev/" rel="noreferrer" target="_blank">
-            BENCORP
+            {homepageIntroCopy.bencorpLabel}
           </a>,
-          {' '}my fake company; source code is on my{' '}
+          {' '}{homepageIntroCopy.experimentsMiddle}{' '}
           <a href="https://www.github.com/beverm2391" rel="noreferrer" target="_blank">
-            GitHub
+            {homepageIntroCopy.githubLabel}
           </a>;
-          {' '}feel free to reach out to me on{' '}
+          {' '}{homepageIntroCopy.experimentsSuffix}{' '}
           <a href="https://www.x.com/beneverman" rel="noreferrer" target="_blank">
-            X
+            {homepageIntroCopy.xLabel}
           </a>.
         </p>
       </section>

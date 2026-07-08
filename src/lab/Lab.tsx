@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { Navigate, useParams, useSearchParams } from 'react-router-dom'
+import { AnimatePresence, motion } from 'motion/react'
 import { siteVisualConfig } from '../siteVisualConfig'
 import { shadowMapModes, type ShadowMapMode } from '../shadowMapModes'
 import V2ShadowLayer, { type ShadowSettings } from '../V2ShadowLayer'
@@ -83,6 +84,7 @@ export default function Lab() {
   const textConfig = useMemo(() => {
     const base = textLayerPresets[textPresetId]
     return {
+      autoCenter: searchParams.get('textAutoCenter') === null ? base.autoCenter : searchParams.get('textAutoCenter') !== '0',
       opacity: readNumber(searchParams, 'textOpacity', base.opacity),
       size: readNumber(searchParams, 'textSize', base.size),
       text: searchParams.get('text') ?? base.text,
@@ -156,6 +158,7 @@ export default function Lab() {
       setShadowPreset={(presetId) => setQuery('shadowPreset', presetId)}
       setSunAngle={(value) => setQuery('sun', value)}
       setTextParam={(key, value) => setQuery(`text${key[0].toUpperCase()}${key.slice(1)}`, value)}
+      setTextAutoCenter={(enabled) => setQuery('textAutoCenter', enabled ? 1 : 0)}
       setTextPreset={(presetId) => {
         setSearchParams(
           (prev) => {
@@ -166,6 +169,7 @@ export default function Lab() {
             next.delete('textX')
             next.delete('textY')
             next.delete('textOpacity')
+            next.delete('textAutoCenter')
             return next
           },
           { replace: true },
@@ -175,37 +179,56 @@ export default function Lab() {
       shadowSettings={shadowSettings}
       sunAngle={sunAngle}
     >
-      {scene.layers.map((layer) => {
-        if (!layer.enabled) return null
-        if (layer.kind === 'text') {
-          return (
-            <div className="lab__render-layer lab__text-layer" key={layer.id}>
-              <span
-                style={{
-                  fontSize: `${layer.config.size}px`,
-                  left: `${layer.config.x}%`,
-                  opacity: layer.config.opacity,
-                  top: `${layer.config.y}%`,
-                }}
+      <AnimatePresence initial={false}>
+        {scene.layers.map((layer) => {
+          if (!layer.enabled) return null
+          if (layer.kind === 'text') {
+            const x = layer.config.autoCenter ? 50 : layer.config.x
+            const y = layer.config.autoCenter ? 50 : layer.config.y
+            return (
+              <motion.div
+                animate={{ opacity: 1, scale: 1 }}
+                className="lab__render-layer lab__text-layer"
+                exit={{ opacity: 0, scale: 0.985 }}
+                initial={{ opacity: 0, scale: 0.985 }}
+                key={layer.id}
+                layout
+                transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
               >
-                {layer.config.text}
-              </span>
-            </div>
+                <motion.span
+                  animate={{ left: `${x}%`, opacity: layer.config.opacity, top: `${y}%` }}
+                  style={{
+                    fontSize: `${layer.config.size}px`,
+                  }}
+                  transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                >
+                  {layer.config.text}
+                </motion.span>
+              </motion.div>
+            )
+          }
+          return (
+            <motion.div
+              animate={{ opacity: 1 }}
+              className="lab__render-layer lab__shadow-layer"
+              exit={{ opacity: 0 }}
+              initial={{ opacity: 0 }}
+              key={layer.id}
+              layout
+              transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <V2ShadowLayer
+                crispnessScale={1}
+                mode={layer.presetId}
+                opacityScale={1}
+                settings={shadowSettings}
+                shadowTint={NEUTRAL_TINT}
+                sunAngle={sunAngle}
+              />
+            </motion.div>
           )
-        }
-        return (
-          <div className="lab__render-layer lab__shadow-layer" key={layer.id}>
-            <V2ShadowLayer
-              crispnessScale={1}
-              mode={layer.presetId}
-              opacityScale={1}
-              settings={shadowSettings}
-              shadowTint={NEUTRAL_TINT}
-              sunAngle={sunAngle}
-            />
-          </div>
-        )
-      })}
+        })}
+      </AnimatePresence>
     </LabShell>
   )
 }
