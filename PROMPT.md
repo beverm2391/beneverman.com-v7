@@ -8,6 +8,13 @@ Art-first personal site. Vite + React + TypeScript + three.js. pnpm.
   port 5174; check before starting another.
 - `pnpm build`, `pnpm lint`, `npx tsc --noEmit` — the verification trio.
 
+## Deploy
+
+Vercel git integration: merging to `main` deploys production immediately.
+There is no CI gate in the repo, so before merging verify locally
+(`tsc`/`lint`/`build`) and check `src/siteVisualConfig.ts` holds release
+values, not debug/sanity-check presets.
+
 ## Routes
 
 - `/` — production view (config from `src/siteVisualConfig.ts`)
