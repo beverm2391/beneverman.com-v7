@@ -59,17 +59,8 @@
   gap: 0.5rem;
 }
 
-.lab__scene-select {
+.lab__scene-select-row .lab__select {
   flex: 1 1 auto;
-  min-width: 0;
-  appearance: none;
-  padding: 0.35rem 0.55rem;
-  border: 1px solid var(--lab-line-strong);
-  border-radius: 0.45rem;
-  background: var(--lab-panel-2);
-  color: var(--lab-text);
-  font: inherit;
-  font-weight: 600;
 }
 
 .lab__dirty {
@@ -338,9 +329,15 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Select primitive. Trigger lives inside .lab (uses lab vars); the popup is
+   portaled to <body>, so its rules below use literal colors. */
 .lab__select {
-  appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
   width: 100%;
+  min-height: 1.85rem;
   padding: 0.3rem 0.5rem;
   border: 1px solid var(--lab-line-strong);
   border-radius: 0.4rem;
@@ -348,6 +345,79 @@
   color: var(--lab-text);
   font: inherit;
   font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lab__select:hover {
+  border-color: rgb(255 255 255 / 0.2);
+}
+
+.lab__select[data-popup-open] {
+  border-color: var(--lab-accent);
+}
+
+.lab__select-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-transform: capitalize;
+}
+
+.lab__select-icon {
+  display: inline-flex;
+  color: var(--lab-text-faint);
+}
+
+.lab__select-positioner {
+  z-index: 60;
+}
+
+.lab__select-popup {
+  min-width: var(--anchor-width);
+  max-height: var(--available-height);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0.25rem;
+  border: 1px solid rgb(255 255 255 / 0.14);
+  border-radius: 0.5rem;
+  background: #17171b;
+  box-shadow: 0 0.9rem 2.4rem rgb(0 0 0 / 0.55);
+  color: rgb(255 255 255 / 0.88);
+  outline: none;
+  overflow-y: auto;
+}
+
+.lab__select-item {
+  display: grid;
+  grid-template-columns: 0.9rem 1fr;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 1.7rem;
+  padding: 0.25rem 0.45rem;
+  border-radius: 0.35rem;
+  color: rgb(255 255 255 / 0.6);
+  font-weight: 600;
+  text-transform: capitalize;
+  cursor: pointer;
+  outline: none;
+}
+
+.lab__select-item[data-highlighted] {
+  background: rgb(255 255 255 / 0.09);
+  color: rgb(255 255 255 / 0.95);
+}
+
+.lab__select-item[data-selected] {
+  color: rgb(255 255 255 / 0.95);
+}
+
+.lab__select-check {
+  grid-column: 1;
+  display: inline-flex;
+  color: #7dd3fc;
 }
 
 .lab__range {

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ChevronDown, Copy, GripVertical, Plus, Trash2 } from 'lucide-react'
 import { getLayerDef, LAYER_TYPES, type Control } from './layers'
+import { LabSelect } from './Select'
 import type { LayerConfig, LayerInstance, LayerType, Scene } from './scene'
 
 export type LabActions = {
@@ -52,18 +53,14 @@ export function LabSidebar({
     <aside className="lab__sidebar">
       <header className="lab__scenebar">
         <div className="lab__scene-select-row">
-          <select
-            className="lab__scene-select"
-            onChange={(event) => actions.selectScene(event.target.value)}
+          <LabSelect
+            onChange={actions.selectScene}
+            options={[
+              ...(isSaved ? [] : [{ value: scene.id, label: `${scene.name} (unsaved)` }]),
+              ...savedScenes.map((saved) => ({ value: saved.id, label: saved.name })),
+            ]}
             value={scene.id}
-          >
-            {!isSaved ? <option value={scene.id}>{scene.name} (unsaved)</option> : null}
-            {savedScenes.map((saved) => (
-              <option key={saved.id} value={saved.id}>
-                {saved.name}
-              </option>
-            ))}
-          </select>
+          />
           {dirty ? <span className="lab__dirty" title="Unsaved changes" /> : null}
         </div>
 
@@ -232,16 +229,10 @@ function LayerControl({
   if (control.kind === 'select') {
     const value = typeof config[control.key] === 'string' ? (config[control.key] as string) : control.options[0]?.value
     return (
-      <label className="lab__control">
+      <div className="lab__control">
         <span className="lab__control-label">{control.label}</span>
-        <select className="lab__select" onChange={(event) => onChange(event.target.value)} value={value}>
-          {control.options.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </label>
+        <LabSelect onChange={onChange} options={control.options} value={value} />
+      </div>
     )
   }
 
