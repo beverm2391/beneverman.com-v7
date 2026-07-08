@@ -1,4 +1,4 @@
-export const shadowMapModes = ['canopy', 'window', 'paper', 'branch', 'mixed', 'blobs', 'pool', 'curtain', 'tower', 'sun'] as const
+export const shadowMapModes = ['canopy', 'window', 'paper', 'branch', 'mixed', 'blobs', 'pool', 'curtain', 'sundial', 'sun'] as const
 
 export type ShadowMapMode = (typeof shadowMapModes)[number]
 

@@ -50,7 +50,7 @@ const diskSamples = 100
 const minShadowCasterSize = 20
 const maxShadowCasterSize = 300
 const desktopShadowAspect = 16 / 9
-const rigidWarpModes = new Set<ShadowMapMode>(['window', 'mixed', 'pool', 'tower', 'sun'])
+const rigidWarpModes = new Set<ShadowMapMode>(['window', 'mixed', 'pool', 'sundial', 'sun'])
 
 const shadowVertexShader = `
   varying vec2 vTexCoord;
@@ -573,13 +573,14 @@ function addLightPool(scene: THREE.Scene, leafGeometries: THREE.BufferGeometry[]
   wall.lineTo(-4, 4)
   wall.closePath()
 
-  // perspective-skewed window projection, center-right so the text column
-  // sits on the calm wash while the pool anchors the open side of the page
+  // perspective-skewed window projection on the left -- nudged right just
+  // enough that the whole aperture stays inside the frame -- so the text
+  // column sits on the calm wash while the pool anchors the open side
   const corners: [number, number][] = [
-    [-0.02 * scale + 0.14, -0.86 * scale - 0.04],
-    [0.84 * scale + 0.14, -0.68 * scale - 0.04],
-    [1.0 * scale + 0.14, 0.5 * scale - 0.04],
-    [0.16 * scale + 0.14, 0.32 * scale - 0.04],
+    [0.02 * scale + 0.1, -0.86 * scale - 0.04],
+    [-0.84 * scale + 0.1, -0.68 * scale - 0.04],
+    [-1.0 * scale + 0.1, 0.5 * scale - 0.04],
+    [-0.16 * scale + 0.1, 0.32 * scale - 0.04],
   ]
   const hole = new THREE.Path()
   hole.moveTo(corners[0][0], corners[0][1])
@@ -614,9 +615,9 @@ function addLightPool(scene: THREE.Scene, leafGeometries: THREE.BufferGeometry[]
   addSprig(
     pool,
     leafGeometries,
-    corners[3][0] + 0.04,
+    corners[3][0] - 0.04,
     corners[3][1] + 0.05,
-    -0.85,
+    -2.3,
     0.05 * settings.scale,
     0.1,
     wallStrength + 0.28,
@@ -626,99 +627,82 @@ function addLightPool(scene: THREE.Scene, leafGeometries: THREE.BufferGeometry[]
   scene.add(pool)
 }
 
-// Sheer curtain: two parted fabric panels built from overlapping vertical
-// fold strips. Strips are translucent (low blue-channel strength) so the
-// page reads through the fabric, and the parted gap down the middle is the
-// bright slit of light. Motion is real mesh animation in useFrame -- each
-// strip sways with its own phase, hardest at the free edges near the gap --
-// layered under the shader's UV warp for the slow billow.
+// Sheer curtain: one solid translucent sheet pinned to the left screen edge,
+// its free edge billowing like the end of a flag. The panel is a single
+// caster with uniform strength (the page reads through it), so all the life
+// is in the silhouette: useFrame displaces the plane's vertices with a wave
+// that ramps from zero at the pinned edge to full at the free end.
 function addCurtain(scene: THREE.Scene, settings: ShadowSettings) {
   const curtain = new THREE.Group()
   curtain.name = 'curtain'
 
-  const panels = [
-    { from: -1.18, gapEdge: -0.14, to: -0.14 },
-    { from: 0.14, gapEdge: 0.14, to: 1.18 },
-  ]
-
-  let strip = 0
-  for (const panel of panels) {
-    const stripCount = getDensityCount(11, settings.density)
-    for (let index = 0; index < stripCount; index += 1) {
-      const t = stripCount === 1 ? 0.5 : index / (stripCount - 1)
-      const seed = 5100 + strip * 37
-      const x = panel.from + (panel.to - panel.from) * t
-      const width = (0.075 + stableNoise(seed) * 0.07) * settings.scale
-      // alternating fold strengths are what make it read as hanging fabric
-      // rather than a flat tinted band
-      const strength = 0.14 + stableNoise(seed + 3) * 0.26
-      const depth = 0.2 + stableNoise(seed + 5) * 0.14
-      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, 3.6), makeCasterMaterial(depth, strength))
-      mesh.position.set(x, 0, 0)
-      mesh.rotation.z = (stableNoise(seed + 7) - 0.5) * 0.05
-      mesh.userData = {
-        // free edges near the parted gap sway hardest, like curtain ends in
-        // a breeze; strips near the outer rod barely move
-        amp: 0.012 + 0.055 * (1 - Math.min(1, Math.abs(x - panel.gapEdge) / 1.05)) ** 2,
-        baseRotation: mesh.rotation.z,
-        baseX: x,
-        phase: stableNoise(seed + 11) * Math.PI * 2,
-      }
-      curtain.add(mesh)
-      strip += 1
-    }
+  // free edge stops just short of the text column; the sheet overshoots the
+  // left/top/bottom frame edges so only the free edge silhouette is visible
+  const width = 1.0
+  const geometry = new THREE.PlaneGeometry(width, 3.6, 48, 10)
+  const mesh = new THREE.Mesh(geometry, makeCasterMaterial(0.26, 0.32))
+  mesh.position.set(-1.22 + width / 2, 0, 0)
+  mesh.userData = {
+    basePositions: Float32Array.from(geometry.attributes.position.array as Float32Array),
+    width,
   }
+  curtain.add(mesh)
 
   scene.add(curtain)
 }
 
-// Sundial monument: one distinct silhouette -- a water tower -- whose shadow
-// pivots around its base as the animated sun sweeps the day. This is the one
-// scene where the sun's movement over time is unmistakable. The silhouette
-// is authored pointing up local +y from the group origin (the base on the
-// ground); useFrame rotates it about that origin and stretches it long at
-// sunrise/sunset, short at noon. The r-channel height climbs with distance
-// from the base so the shadow's tip blurs out like a real long shadow.
-function addTower(scene: THREE.Scene, settings: ShadowSettings) {
-  const tower = new THREE.Group()
-  tower.name = 'tower'
+// Sundial: a slender gnomon spike whose shadow pivots around its base as the
+// animated sun sweeps the day -- the one scene where the sun's movement over
+// time is unmistakable. The silhouette is the gnomon's cast shadow: a long
+// tapering wedge, crisp at the ground and blurring toward the tip (r-channel
+// height climbs with distance from the base), with a small finial ball. A
+// fixed dial-plate sliver at the base stays put while the shadow rotates.
+//
+// The display path mirrors scene y (the caster map is sampled with a flipped
+// v), so the spike is authored extending local -y from the group origin and
+// anchored at scene y=+1 to sit on the screen's bottom edge. Rotations negate
+// under the same mirror.
+function addSundial(scene: THREE.Scene, settings: ShadowSettings) {
+  const sundial = new THREE.Group()
+  sundial.name = 'sundial'
 
-  // the display path mirrors scene y (the caster map is sampled with a
-  // flipped v), so the silhouette is authored extending local -y from the
-  // group origin and anchored at scene y=+1 to sit on the screen's bottom
-  // edge. Rotations negate under the same mirror.
+  // tapering shaft in three segments so the depth (blur) can ramp with
+  // height; a single shape would blur uniformly
+  const shaftSegments: { depth: number; fromWidth: number; fromY: number; toWidth: number; toY: number }[] = [
+    { depth: 0.05, fromWidth: 0.085, fromY: 0, toWidth: 0.055, toY: -0.42 },
+    { depth: 0.13, fromWidth: 0.055, fromY: -0.42, toWidth: 0.032, toY: -0.76 },
+    { depth: 0.22, fromWidth: 0.032, fromY: -0.76, toWidth: 0.009, toY: -1.0 },
+  ]
+  for (const segment of shaftSegments) {
+    const shape = new THREE.Shape()
+    shape.moveTo(-segment.fromWidth / 2, segment.fromY)
+    shape.lineTo(segment.fromWidth / 2, segment.fromY)
+    shape.lineTo(segment.toWidth / 2, segment.toY)
+    shape.lineTo(-segment.toWidth / 2, segment.toY)
+    shape.closePath()
+    sundial.add(new THREE.Mesh(new THREE.ShapeGeometry(shape), makeCasterMaterial(segment.depth)))
+  }
 
-  // splayed legs + braces
-  addRect(tower, -0.075, -0.21, 0.024, 0.46, 0.06, -0.1)
-  addRect(tower, 0.075, -0.21, 0.024, 0.46, 0.06, 0.1)
-  addRect(tower, 0, -0.15, 0.17, 0.016, 0.07, 0)
-  addRect(tower, 0, -0.29, 0.16, 0.013, 0.09, 0.55)
-  addRect(tower, 0, -0.29, 0.16, 0.013, 0.09, -0.55)
+  // finial ball floating just past the tip
+  const finial = new THREE.Mesh(new THREE.CircleGeometry(1, 32), makeCasterMaterial(0.28))
+  finial.position.set(0, -1.06, 0)
+  finial.scale.set(0.034, 0.034, 1)
+  sundial.add(finial)
 
-  // tank with rounded shoulders
-  addRect(tower, 0, -0.53, 0.3, 0.19, 0.2, 0)
-  const tankTop = new THREE.Mesh(new THREE.CircleGeometry(1, 32), makeCasterMaterial(0.24))
-  tankTop.position.set(0, -0.62, 0)
-  tankTop.scale.set(0.15, 0.06, 1)
-  tower.add(tankTop)
+  // rotation in useFrame pivots about the group origin, i.e. where the
+  // gnomon meets the dial at the bottom of the frame
+  sundial.position.set(-0.05, 1.0, 0)
+  sundial.scale.setScalar(1.15 * settings.scale)
+  sundial.userData = { baseScale: 1.15 * settings.scale }
 
-  // conical roof + finial
-  const roofShape = new THREE.Shape()
-  roofShape.moveTo(-0.16, -0.63)
-  roofShape.lineTo(0.16, -0.63)
-  roofShape.lineTo(0, -0.84)
-  roofShape.closePath()
-  const roof = new THREE.Mesh(new THREE.ShapeGeometry(roofShape), makeCasterMaterial(0.3))
-  tower.add(roof)
-  addRect(tower, 0, -0.87, 0.012, 0.09, 0.34, 0)
+  scene.add(sundial)
 
-  // rotation in useFrame pivots about the group origin, i.e. where the tower
-  // meets the ground at the bottom of the frame
-  tower.position.set(-0.05, 1.0, 0)
-  tower.scale.setScalar(1.1 * settings.scale)
-  tower.userData = { baseScale: 1.1 * settings.scale }
-
-  scene.add(tower)
+  // the dial plate's own shadow does not rotate with the gnomon's: a flat
+  // ellipse sliver fixed to the scene grounds the pivot at the frame edge
+  const plate = new THREE.Mesh(new THREE.CircleGeometry(1, 48), makeCasterMaterial(0.06, 0.8))
+  plate.position.set(-0.05, 1.0, 0)
+  plate.scale.set(0.34 * settings.scale, 0.05 * settings.scale, 1)
+  scene.add(plate)
 }
 
 function buildSourceScene(mode: ShadowMapMode, settings: ShadowSettings) {
@@ -741,7 +725,7 @@ function buildSourceScene(mode: ShadowMapMode, settings: ShadowSettings) {
   }
   if (mode === 'pool') addLightPool(scene, leafGeometries, settings)
   if (mode === 'curtain') addCurtain(scene, settings)
-  if (mode === 'tower') addTower(scene, settings)
+  if (mode === 'sundial') addSundial(scene, settings)
   // 'sun' builds nothing: clean paper, background glow only -- the floor of
   // minimal, kept as a selectable reference point
   if (mode === 'blobs') {
@@ -912,7 +896,7 @@ function SourceSceneShadowPlane({ crispnessScale, mode, settings, shadowTint, sh
     const animatedTime = clock.elapsedTime * settings.speed
     const canopyGroup = sourceScene.getObjectByName('canopy')
     const curtainGroup = sourceScene.getObjectByName('curtain')
-    const towerGroup = sourceScene.getObjectByName('tower')
+    const sundialGroup = sourceScene.getObjectByName('sundial')
     const poolGroup = sourceScene.getObjectByName('lightpool')
 
     if (canopyGroup) {
@@ -928,32 +912,38 @@ function SourceSceneShadowPlane({ crispnessScale, mode, settings, shadowTint, sh
         clump.position.y = baseY + Math.cos(animatedTime * 0.27 + phase * 1.4) * 0.009 * settings.wind
       }
     } else if (curtainGroup) {
-      // per-strip fabric sway: two incommensurate sine terms so the folds
-      // ripple rather than rock in unison
-      for (const strip of curtainGroup.children) {
-        const { amp, baseRotation, baseX, phase } = strip.userData
-        strip.position.x =
-          baseX +
-          (Math.sin(animatedTime * 0.5 + phase) + Math.sin(animatedTime * 1.35 + phase * 2.1) * 0.45) *
-            amp *
-            settings.wind
-        strip.rotation.z = baseRotation + Math.sin(animatedTime * 0.72 + phase) * 0.012 * settings.wind
+      // flag-wave: displace the sheet's vertices horizontally with two
+      // incommensurate waves traveling up the panel. Amplitude ramps from
+      // zero at the pinned left edge to full at the free edge, so the fabric
+      // flows from its anchor instead of sliding as a rigid block.
+      const sheet = curtainGroup.children[0] as THREE.Mesh
+      const positionAttribute = sheet.geometry.attributes.position as THREE.BufferAttribute
+      const { basePositions, width } = sheet.userData as { basePositions: Float32Array; width: number }
+      for (let vertex = 0; vertex < positionAttribute.count; vertex += 1) {
+        const baseX = basePositions[vertex * 3]
+        const baseY = basePositions[vertex * 3 + 1]
+        const reach = (baseX + width / 2) / width
+        const wave =
+          Math.sin(baseY * 2.1 - animatedTime * 0.9 + reach * 2.6) +
+          Math.sin(baseY * 4.7 + animatedTime * 1.4 + reach * 4.2) * 0.35
+        positionAttribute.setX(vertex, baseX + wave * 0.085 * reach ** 1.6 * settings.wind)
       }
-    } else if (towerGroup) {
-      // sundial: pivot the shadow about the tower's base opposite the sun's
+      positionAttribute.needsUpdate = true
+    } else if (sundialGroup) {
+      // sundial: pivot the gnomon's shadow about its base opposite the sun's
       // travel, long at sunrise/sunset and short at noon. sunAngle is the
       // live animated angle, so the shadow visibly sweeps over the day.
       // Scene rotation is the negative of the on-screen rotation because of
-      // the display mirror described in addTower.
-      // 0.72 keeps the sweep inside the frame: a physically flat sunrise
-      // shadow would lie along the bottom edge where nothing can see it
+      // the display mirror described in addSundial. 0.72 keeps the sweep
+      // inside the frame: a physically flat sunrise shadow would lie along
+      // the bottom edge where nothing can see it.
       const elevation = Math.max(0, Math.sin(sunAngle))
-      towerGroup.rotation.z = (sunAngle - Math.PI / 2) * 0.72
-      towerGroup.scale.y = towerGroup.userData.baseScale * (1.55 - 0.75 * elevation)
+      sundialGroup.rotation.z = (sunAngle - Math.PI / 2) * 0.72
+      sundialGroup.scale.y = sundialGroup.userData.baseScale * (1.55 - 0.75 * elevation)
     } else if (poolGroup) {
       // the light patch creeps across the floor opposite the sun's travel,
-      // slow enough that it never wanders into the text column
-      poolGroup.position.x = (sunAngle - settings.sunAngle) * 0.18
+      // slow enough that it stays essentially inside the frame all day
+      poolGroup.position.x = (sunAngle - settings.sunAngle) * 0.1
     } else {
       sourceScene.position.x = Math.sin(animatedTime * 0.16) * 0.035 * settings.wind
       sourceScene.position.y = Math.cos(animatedTime * 0.12) * 0.025 * settings.wind
