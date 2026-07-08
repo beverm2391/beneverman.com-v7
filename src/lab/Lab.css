@@ -1,96 +1,27 @@
 .lab {
   position: fixed;
   inset: 0;
-  display: grid;
-  grid-template-columns: 3.75rem minmax(0, 1fr);
-  gap: 0.75rem;
+  display: block;
   padding: 0.75rem;
-  background:
-    radial-gradient(circle at 20% 0%, rgb(255 255 255 / 0.045), transparent 32rem),
-    linear-gradient(135deg, #0c0c0d, #141416 58%, #09090a);
+  background: #050505;
   color: var(--foreground);
   font-family: var(--font-sans);
   font-size: 0.75rem;
 }
 
-.lab__rail {
-  display: grid;
-  grid-template-rows: auto 1fr auto;
-  justify-items: center;
-  gap: 0.75rem;
-  min-height: 0;
-  padding: 0.5rem 0;
-}
-
-.lab__rail-mark,
-.lab__rail-scene,
-.lab__rail-button {
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.06),
-    0 1px 2px rgb(0 0 0 / 0.36);
-}
-
-.lab__rail-mark {
-  display: grid;
-  place-items: center;
-  width: 2rem;
-  height: 2rem;
-  border-radius: 999px;
-  background: #7f1d1d;
-  color: #fff7ed;
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-}
-
-.lab__rail-scenes {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  align-items: center;
-  min-height: 0;
-  padding-top: 0.25rem;
-}
-
-.lab__rail-scene {
-  display: grid;
-  place-items: center;
-  width: 2.1rem;
-  height: 2.1rem;
-  border: 1px solid rgb(255 255 255 / 0.06);
-  border-radius: 0.7rem;
-  background: rgb(255 255 255 / 0.045);
-  color: rgb(255 255 255 / 0.58);
-  font-size: 0.64rem;
-  font-weight: 650;
-  text-decoration: none;
-}
-
-.lab__rail-scene:hover,
-.lab__rail-scene.is-active {
-  background: rgb(255 255 255 / 0.92);
-  color: #111113;
-}
-
-.lab__rail-button {
-  color: rgb(255 255 255 / 0.76);
-}
-
 .lab__workbench {
   min-width: 0;
   min-height: 0;
+  width: 100%;
+  height: 100%;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 0.65rem;
-  padding: 0.7rem;
-  border: 1px solid rgb(255 255 255 / 0.075);
-  border-radius: 1.1rem;
-  background:
-    linear-gradient(180deg, rgb(255 255 255 / 0.055), transparent 9rem),
-    #f7f7f5;
-  box-shadow:
-    0 1.5rem 4rem rgb(0 0 0 / 0.34),
-    inset 0 1px 0 rgb(255 255 255 / 0.86);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .lab__topline,
@@ -99,6 +30,13 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
+  min-width: 0;
+}
+
+.lab__topline-left {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
   min-width: 0;
 }
 
@@ -123,7 +61,7 @@
   padding: 0 0.65rem;
   border: 1px solid transparent;
   border-radius: 0.48rem;
-  color: rgb(24 24 27 / 0.56);
+  color: rgb(255 255 255 / 0.54);
   font-size: 0.72rem;
   font-weight: 650;
   text-decoration: none;
@@ -131,15 +69,21 @@
 }
 
 .lab__scene-tab:hover {
-  background: rgb(0 0 0 / 0.045);
-  color: rgb(24 24 27 / 0.78);
+  background: rgb(255 255 255 / 0.06);
+  color: rgb(255 255 255 / 0.82);
 }
 
 .lab__scene-tab.is-active {
-  border-color: rgb(0 0 0 / 0.08);
-  background: #171719;
-  color: #fafafa;
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
+  border-color: rgb(255 255 255 / 0.1);
+  background: rgb(255 255 255 / 0.92);
+  color: #101012;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.24);
+}
+
+.lab__chrome-button {
+  color: rgb(255 255 255 / 0.78);
+  background: rgb(255 255 255 / 0.045);
+  border-color: rgb(255 255 255 / 0.08);
 }
 
 .lab__sun-control {
@@ -189,12 +133,10 @@
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   gap: 0.75rem;
-  padding: 0.8rem;
-  border-radius: 0.95rem;
-  background: rgb(255 255 255 / 0.58);
-  box-shadow:
-    inset 0 0 0 1px rgb(0 0 0 / 0.055),
-    inset 0 1px 0 rgb(255 255 255 / 0.7);
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   overflow: hidden;
   transition:
     opacity 160ms ease,
@@ -206,7 +148,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
-  color: rgb(24 24 27 / 0.76);
+  color: rgb(255 255 255 / 0.76);
   font-weight: 700;
 }
 
@@ -236,7 +178,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
-  color: rgb(24 24 27 / 0.72);
+  color: rgb(255 255 255 / 0.68);
   font-size: 0.72rem;
   font-weight: 600;
 }
@@ -245,28 +187,21 @@
   position: relative;
   min-width: 0;
   min-height: 0;
-  padding: 0.65rem;
-  border-radius: 1rem;
-  background: #101012;
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.1),
-    inset 0 -1px 0 rgb(0 0 0 / 0.42),
-    0 1rem 2.5rem rgb(0 0 0 / 0.16);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0.45rem;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .lab__viewer-toolbar {
-  position: absolute;
-  z-index: 2;
-  top: 1rem;
-  left: 1rem;
-  right: 1rem;
+  position: static;
+  z-index: auto;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  pointer-events: none;
-}
-
-.lab__viewer-toolbar > * {
   pointer-events: auto;
 }
 
@@ -278,9 +213,7 @@
   border-radius: 0.75rem;
   background: #f2f0ee;
   overflow: hidden;
-  box-shadow:
-    inset 0 0 0 1px rgb(0 0 0 / 0.08),
-    inset 0 1.4rem 4rem rgb(0 0 0 / 0.06);
+  box-shadow: none;
 }
 
 .lab__viewer .daylight-shadow-layer {
@@ -317,12 +250,11 @@
 }
 
 .lab__statusbar {
-  color: rgb(24 24 27 / 0.58);
+  color: rgb(255 255 255 / 0.56);
 }
 
 @media (max-width: 900px) {
   .lab {
-    grid-template-columns: 3.25rem minmax(0, 1fr);
     padding: 0.5rem;
   }
 

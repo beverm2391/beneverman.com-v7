@@ -29,15 +29,6 @@ type LabShellProps = {
   sunAngle: number
 }
 
-const sceneInitials: Record<ShadowMapMode, string> = {
-  canopy: 'Ca',
-  mixed: 'Mx',
-  pool: 'Po',
-  sun: 'Su',
-  sundial: 'Sd',
-  window: 'Wi',
-}
-
 function sliderValue(value: number | readonly number[], fallback: number) {
   return typeof value === 'number' ? value : Number(value[0] ?? fallback)
 }
@@ -58,46 +49,32 @@ export function LabShell({
 
   return (
     <div className="lab">
-      <aside className="lab__rail" aria-label="Lab navigation">
-        <div className="lab__rail-mark">BE</div>
-        <nav className="lab__rail-scenes" aria-label="Scene shortcuts">
-          {scenes.map((mode) => (
-            <Link
-              aria-current={mode === scene ? 'page' : undefined}
-              className={mode === scene ? 'lab__rail-scene is-active' : 'lab__rail-scene'}
-              key={mode}
-              to={sceneLink(mode)}
-              title={mode}
-            >
-              {sceneInitials[mode]}
-            </Link>
-          ))}
-        </nav>
-        <Button
-          aria-label={isInspectorOpen ? 'Collapse inspector' : 'Open inspector'}
-          className="lab__rail-button"
-          onClick={() => setIsInspectorOpen((isOpen) => !isOpen)}
-          size="icon-sm"
-          variant="ghost"
-        >
-          {isInspectorOpen ? <PanelLeftClose /> : <PanelLeftOpen />}
-        </Button>
-      </aside>
-
       <main className="lab__workbench">
         <header className="lab__topline">
-          <nav className="lab__scene-tabs" aria-label="Scene modes">
-            {scenes.map((mode) => (
-              <Link
-                aria-current={mode === scene ? 'page' : undefined}
-                className={mode === scene ? 'lab__scene-tab is-active' : 'lab__scene-tab'}
-                key={mode}
-                to={sceneLink(mode)}
-              >
-                {mode}
-              </Link>
-            ))}
-          </nav>
+          <div className="lab__topline-left">
+            <Button
+              aria-label={isInspectorOpen ? 'Collapse inspector' : 'Open inspector'}
+              className="lab__chrome-button"
+              onClick={() => setIsInspectorOpen((isOpen) => !isOpen)}
+              size="icon-sm"
+              variant="outline"
+            >
+              {isInspectorOpen ? <PanelLeftClose /> : <PanelLeftOpen />}
+            </Button>
+
+            <nav className="lab__scene-tabs" aria-label="Scene modes">
+              {scenes.map((mode) => (
+                <Link
+                  aria-current={mode === scene ? 'page' : undefined}
+                  className={mode === scene ? 'lab__scene-tab is-active' : 'lab__scene-tab'}
+                  key={mode}
+                  to={sceneLink(mode)}
+                >
+                  {mode}
+                </Link>
+              ))}
+            </nav>
+          </div>
 
           <div className="lab__sun-control">
             <Badge variant="outline">
