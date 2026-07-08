@@ -1,0 +1,154 @@
+.sun-lab-shell {
+  position: relative;
+  display: grid;
+  align-content: center;
+  min-height: 100svh;
+  overflow: hidden;
+  padding: clamp(1.25rem, 4vw, 4rem);
+  color: #171717;
+  background:
+    linear-gradient(126deg, rgba(255, 226, 164, 0.44), transparent 43%),
+    #f2f0ee;
+  isolation: isolate;
+}
+
+.sun-lab-intro {
+  position: fixed;
+  top: clamp(1rem, 3vw, 2.25rem);
+  left: clamp(1rem, 3vw, 2.25rem);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-family: Geist, Inter, ui-sans-serif, sans-serif;
+  font-size: 0.78rem;
+  font-weight: 300;
+  letter-spacing: 0;
+}
+
+.sun-lab-intro p {
+  margin: 0;
+}
+
+.sun-lab-angle {
+  min-width: 2.1rem;
+  color: rgba(23, 23, 23, 0.4);
+  font-variant-numeric: tabular-nums;
+}
+
+.sun-lab-intro a {
+  color: rgba(23, 23, 23, 0.5);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+
+.sun-lab-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(16rem, 1fr));
+  gap: clamp(0.9rem, 2vw, 1.5rem);
+  width: min(52rem, 100%);
+  margin: 0 auto;
+}
+
+.sun-lab-card {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: 0.85rem;
+  padding: 1rem;
+  border: 1px solid rgba(23, 23, 23, 0.1);
+  border-radius: 8px;
+  background: rgba(242, 240, 238, 0.34);
+  box-shadow: 0 24px 70px rgba(57, 45, 25, 0.06);
+}
+
+.sun-lab-card-header {
+  display: flex;
+  justify-content: space-between;
+  color: rgba(23, 23, 23, 0.48);
+  font-family: Geist, Inter, ui-sans-serif, sans-serif;
+  font-size: 0.72rem;
+  font-weight: 300;
+  line-height: 1;
+}
+
+/* Miniature homepage: the widget sits at intended real size in the top-left
+   corner, the centered copy block stands in for the intro text. */
+.sun-lab-mock {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  border: 1px solid rgba(23, 23, 23, 0.09);
+  border-radius: 6px;
+  background:
+    linear-gradient(126deg, rgba(255, 224, 156, 0.34), transparent 46%),
+    rgba(242, 240, 238, 0.6);
+}
+
+.sun-lab-widget {
+  position: absolute;
+  top: 0.8rem;
+  left: 0.85rem;
+  width: 3.1rem;
+}
+
+.sun-lab-mock-copy {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: start;
+  gap: 0.55rem;
+}
+
+.sun-lab-mock-copy p {
+  margin: 0;
+  color: rgba(23, 23, 23, 0.78);
+  font-family: Geist, Inter, ui-sans-serif, sans-serif;
+  font-size: 0.8rem;
+  font-weight: 300;
+}
+
+.sun-lab-mock-copy span {
+  display: block;
+  width: 9.5rem;
+  height: 0.3rem;
+  border-radius: 999px;
+  background: rgba(23, 23, 23, 0.07);
+}
+
+.sun-lab-mock-copy span:last-child {
+  width: 6.5rem;
+}
+
+.sun-lab-detail {
+  display: grid;
+  place-items: center;
+  padding: 0.5rem 0 0.25rem;
+}
+
+.sun-lab-detail .sun-widget {
+  width: 8.5rem;
+}
+
+.sun-lab-note {
+  margin: 0;
+  color: rgba(23, 23, 23, 0.45);
+  font-family: Geist, Inter, ui-sans-serif, sans-serif;
+  font-size: 0.72rem;
+  font-weight: 300;
+  line-height: 1.45;
+}
+
+@media (max-width: 820px) {
+  .sun-lab-shell {
+    align-content: start;
+    padding-top: 5.5rem;
+  }
+
+  .sun-lab-grid {
+    grid-template-columns: 1fr;
+  }
+}
