@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { Navigate, useParams, useSearchParams } from 'react-router-dom'
 import { HomeIntro } from '../HomeIntro'
+import { getHomeIntroStyle } from '../homeVisualConfig'
 import { siteVisualConfig } from '../siteVisualConfig'
 import { shadowMapModes, type ShadowMapMode } from '../shadowMapModes'
 import V2ShadowLayer, { type ShadowSettings } from '../V2ShadowLayer'
@@ -48,6 +49,7 @@ export default function Lab() {
   const shadowPresetId: ShadowMapMode = shadowPresetParam && isValidScene(shadowPresetParam) ? shadowPresetParam : resolvedSceneId
   const sunAngle = readNumber(searchParams, 'sun', DEFAULT_SUN)
   const textOpacity = readNumber(searchParams, 'textOpacity', DEFAULT_TEXT_OPACITY)
+  const homeIntroStyle = getHomeIntroStyle()
 
   const shadowSettings = useMemo<ShadowSettings>(() => {
     const base = { ...siteVisualConfig.shadowSettings } as ShadowSettings
@@ -113,7 +115,11 @@ export default function Lab() {
         if (!layer.enabled) return null
         if (layer.kind === 'text') {
           return (
-            <div className="lab__render-layer lab__homepage-text-layer" key={layer.id} style={{ opacity: layer.config.opacity }}>
+            <div
+              className="lab__render-layer lab__homepage-text-layer"
+              key={layer.id}
+              style={{ ...homeIntroStyle, opacity: layer.config.opacity }}
+            >
               <HomeIntro />
             </div>
           )

@@ -13,6 +13,7 @@ import {
   type ShadowSourcePreview,
 } from './shadowSourcePreview'
 import { HomeIntro } from './HomeIntro'
+import { getHomeIntroStyle } from './homeVisualConfig'
 import { siteVisualConfig } from './siteVisualConfig'
 import { SunIconLab } from './SunIconLab'
 import { getShadowFactor, SunWidget, sunWidgetVariants, type SunWidgetVariant } from './SunWidget'
@@ -1335,7 +1336,6 @@ function App() {
     ...responsiveVisualConfig.textureSettings,
   })
   const backgroundMode = backgroundModes.find((mode) => mode.label === background) ?? backgroundModes[0]
-  const fontMode = fontModes.find((mode) => mode.label === font) ?? fontModes[0]
   const effectiveSunAngle = useAnimatedSunAngle(shadowSettings.sunAngle)
   // Everything below derives from the one animated sun angle. Cast shadows
   // are sun-only: intensity fades to zero at the horizons and the page rests
@@ -1474,16 +1474,13 @@ function App() {
     return <SunIconLab />
   }
 
+  const homeIntroStyle = getHomeIntroStyle({ font, typeSettings })
+
   return (
     <main
       className="site-shell"
       style={{
-        ['--intro-font-family' as string]: fontMode.stack,
-        ['--intro-font-size' as string]: `${typeSettings.size}rem`,
-        ['--intro-font-weight' as string]: typeSettings.weight,
-        ['--intro-letter-spacing' as string]: `${typeSettings.tracking}em`,
-        ['--intro-line-height' as string]: typeSettings.lineHeight,
-        ['--intro-max-width' as string]: `${typeSettings.width}rem`,
+        ...homeIntroStyle,
         ['--texture-opacity' as string]: textureSettings.opacity,
         ['--texture-scale' as string]: `${textureSettings.scale}px`,
         backgroundColor: backgroundMode.color,
