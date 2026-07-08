@@ -92,7 +92,6 @@
 
 .lab__sun-control [data-slot='badge'],
 .lab__statusbar [data-slot='badge'],
-.lab__viewer-toolbar [data-slot='badge'],
 .lab__inspector-heading [data-slot='badge'],
 .lab__control-label [data-slot='badge'] {
   gap: 0.35rem;
@@ -100,7 +99,6 @@
 
 .lab__sun-control svg,
 .lab__statusbar svg,
-.lab__viewer-toolbar svg,
 .lab__inspector-heading svg {
   width: 0.85rem;
   height: 0.85rem;
@@ -176,6 +174,11 @@
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
+}
+
+.lab__layer-trigger-title {
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .lab__accordion-trigger svg {
@@ -261,6 +264,7 @@
 }
 
 .lab__layer-toggle {
+  flex: 0 0 auto;
   min-width: 2rem;
   border: 0;
   border-radius: 999px;
@@ -370,6 +374,19 @@
   color: rgb(255 255 255 / 0.82);
 }
 
+.lab__fixed-copy-note {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  color: rgb(255 255 255 / 0.72);
+  font-size: 0.72rem;
+}
+
+.lab__fixed-copy-note span {
+  color: rgb(255 255 255 / 0.42);
+  font-size: 0.65rem;
+}
+
 .lab__switch-row {
   display: flex;
   align-items: center;
@@ -406,22 +423,11 @@
   position: relative;
   min-width: 0;
   min-height: 0;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 0.45rem;
+  display: block;
   padding: 0;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
-}
-
-.lab__viewer-toolbar {
-  position: static;
-  z-index: auto;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  pointer-events: auto;
 }
 
 .lab__viewer {
@@ -450,19 +456,15 @@
   z-index: 2;
 }
 
-.lab__text-layer {
+.lab__homepage-text-layer {
   z-index: 1;
-  color: #161616;
-  font-family: var(--font-sans);
-  font-weight: 760;
-  letter-spacing: 0;
-  line-height: 1.02;
+  display: grid;
+  place-items: center;
+  transition: opacity 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.lab__text-layer span {
-  position: absolute;
-  max-width: min(38rem, 72%);
-  transform: translate(-50%, -50%);
+.lab__homepage-text-layer .intro {
+  transform: translateY(-1rem);
 }
 
 .lab__source-card {
