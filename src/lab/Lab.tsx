@@ -1,8 +1,9 @@
 import { useMemo } from 'react'
-import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
+import { Navigate, useParams, useSearchParams } from 'react-router-dom'
 import { siteVisualConfig } from '../siteVisualConfig'
 import { shadowMapModes, type ShadowMapMode } from '../shadowMapModes'
 import V2ShadowLayer, { type ShadowSettings } from '../V2ShadowLayer'
+import { LabShell, type LabControl } from './LabShell'
 import './coss.css'
 import './Lab.css'
 
@@ -25,12 +26,9 @@ import './Lab.css'
 const NEUTRAL_TINT = [0.08, 0.09, 0.12] as const
 const DEFAULT_SUN = siteVisualConfig.shadowSettings.sunAngle
 
-// The controls exposed as sliders in the scaffold. Kept as one flat list on
-// purpose -- per-scene param filtering is a co-design decision, not baked in
-// yet. These are placeholders: swap the native inputs for Ben's UI primitives.
-type NumericSetting = Exclude<keyof ShadowSettings, 'canopyStyle'>
-type Control = { key: NumericSetting; label: string; min: number; max: number; step: number }
-const CONTROLS: Control[] = [
+// The controls exposed in the inspector. Kept as one flat list on purpose --
+// per-scene param filtering is a co-design decision, not baked in yet.
+const CONTROLS: LabControl[] = [
   { key: 'lightRays', label: 'Light rays', min: 0, max: 1, step: 0.01 },
   { key: 'rayDiffusion', label: 'Ray diffusion', min: 0, max: 1, step: 0.01 },
   { key: 'lightGlow', label: 'Light glow', min: 0, max: 1, step: 0.01 },
@@ -91,76 +89,24 @@ export default function Lab() {
   }
 
   return (
-    <div className="lab">
-      {/* TOP BAR — scene switcher + sun angle. Placeholder chrome. */}
-      <header className="lab__topbar">
-        <nav className="lab__scenes">
-          {shadowMapModes.map((mode) => (
-            <Link
-              key={mode}
-              to={sceneLink(mode)}
-              className={mode === scene ? 'lab__scene lab__scene--active' : 'lab__scene'}
-            >
-              {mode}
-            </Link>
-          ))}
-        </nav>
-        <label className="lab__sun">
-          sun {sunAngle.toFixed(2)}
-          <input
-            type="range"
-            min={0}
-            max={Math.PI * 2}
-            step={0.01}
-            value={sunAngle}
-            onChange={(e) => setParam('sun', Number(e.target.value))}
-          />
-        </label>
-      </header>
-
-      <div className="lab__body">
-        {/* LEFT SIDEBAR — param controls. Placeholder native inputs. */}
-        <aside className="lab__sidebar">
-          {CONTROLS.map((control) => (
-            <label key={control.key} className="lab__control">
-              <span className="lab__control-label">
-                {control.label}
-                <em>{settings[control.key].toFixed(2)}</em>
-              </span>
-              <input
-                type="range"
-                min={control.min}
-                max={control.max}
-                step={control.step}
-                value={settings[control.key]}
-                onChange={(e) => setParam(control.key, Number(e.target.value))}
-              />
-            </label>
-          ))}
-        </aside>
-
-        {/* CENTER — live preview over paper. */}
-        <main className="lab__preview">
-          <V2ShadowLayer
-            crispnessScale={1}
-            mode={scene}
-            opacityScale={1}
-            settings={settings}
-            shadowTint={NEUTRAL_TINT}
-            sunAngle={sunAngle}
-          />
-        </main>
-      </div>
-
-      {/* BOTTOM BAR — status + copy JSON. Placeholder chrome. */}
-      <footer className="lab__bottombar">
-        <span className="lab__status">
-          {scene} · {CONTROLS.length} params
-        </span>
-        <button type="button" className="lab__copy" onClick={copyJson}>
-          Copy settings JSON
-        </button>
-      </footer>
-    </div>
+    <LabShell
+      controls={CONTROLS}
+      copyJson={copyJson}
+      scene={scene}
+      sceneLink={sceneLink}
+      scenes={shadowMapModes}
+      setParam={setParam}
+      settings={settings}
+      sunAngle={sunAngle}
+    >
+      <V2ShadowLayer
+        crispnessScale={1}
+        mode={scene}
+        opacityScale={1}
+        settings={settings}
+        shadowTint={NEUTRAL_TINT}
+        sunAngle={sunAngle}
+      />
+    </LabShell>
   )
 }
