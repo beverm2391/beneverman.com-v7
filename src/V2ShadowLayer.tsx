@@ -689,7 +689,7 @@ function addLightPool(scene: THREE.Scene, leafGeometries: THREE.BufferGeometry[]
 // caster with uniform strength (the page reads through it), so all the life
 // is in the silhouette: useFrame displaces the plane's vertices with a wave
 // that ramps from zero at the pinned edge to full at the free end.
-function addCurtain(scene: THREE.Scene, settings: ShadowSettings) {
+function addCurtain(scene: THREE.Scene, _settings: ShadowSettings) {
   const curtain = new THREE.Group()
   curtain.name = 'curtain'
 

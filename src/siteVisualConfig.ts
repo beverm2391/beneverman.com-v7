@@ -3,7 +3,7 @@ import type { ShadowMapMode } from './shadowMapModes'
 export const siteVisualConfig = {
   background: 'paper',
   font: 'geist',
-  shadowMapMode: 'mixed' satisfies ShadowMapMode,
+  shadowMapMode: 'sun' satisfies ShadowMapMode,
   shadowSettings: {
     blindStrength: 0.12,
     canopyStrength: 1,
@@ -14,8 +14,7 @@ export const siteVisualConfig = {
     depthMix: 0.75,
     layerSpread: 1.15,
     lightGlow: 0.6,
-    // cranked for ray sanity-checking; dial back before release
-    lightRays: 2.6,
+    lightRays: 0.5,
     opacity: 0.19,
     rayDiffusion: 0.3,
     resolution: 1,
@@ -51,7 +50,7 @@ export const siteVisualConfig = {
         depthMix: 0.8,
         layerSpread: 1.95,
         lightGlow: 0.6,
-        lightRays: 2.6,
+        lightRays: 0.5,
         opacity: 0.2,
         rayDiffusion: 0.3,
         resolution: 1,

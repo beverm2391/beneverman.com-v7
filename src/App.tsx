@@ -1307,11 +1307,14 @@ function App() {
   const [font, setFont] = useState<FontMode>(responsiveVisualConfig.font)
   const timelineEvents = useDebugTimeline()
   const shadowCapability = useShadowCapability()
-  const ShadowLayer = useAfterInteractiveShadowLayer(shadowCapability.enabled && !isSunIconLab)
   const [shadowSettings, setShadowSettings] = useState<ShadowSettings>({
     ...responsiveVisualConfig.shadowSettings,
   })
   const [shadowMapMode, setShadowMapMode] = useState<ShadowMapMode>(responsiveVisualConfig.shadowMapMode)
+  const shouldRenderShadowLayer = shadowMapMode !== 'sun'
+  const ShadowLayer = useAfterInteractiveShadowLayer(
+    shadowCapability.enabled && !isSunIconLab && shouldRenderShadowLayer,
+  )
   const [isDebugPanelCollapsed, setIsDebugPanelCollapsed] = useState(false)
   const shadowSourcePreview = useShadowSourcePreview()
   const [showShadowSource, setShowShadowSource] = useState(false)
@@ -1480,7 +1483,7 @@ function App() {
     >
       <div className="visual-scene-layer" aria-hidden="true">
         <BackgroundShader mode={backgroundMode} sunAngle={effectiveSunAngle} />
-        {shadowCapability.enabled && ShadowLayer ? (
+        {shadowCapability.enabled && shouldRenderShadowLayer && ShadowLayer ? (
           <ShadowLayer
             crispnessScale={shadowCrispnessScale}
             mode={shadowMapMode}
