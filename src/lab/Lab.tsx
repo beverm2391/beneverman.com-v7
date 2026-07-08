@@ -1,6 +1,8 @@
 import { useMemo } from 'react'
 import { Navigate, useParams, useSearchParams } from 'react-router-dom'
 import { HomeIntro } from '../HomeIntro'
+import { backgroundModes, type BackgroundMode } from '../HomeSunGradientConfig'
+import { HomeSunGradientLayer } from '../HomeSunGradientLayer'
 import { getHomeIntroStyle } from '../homeVisualConfig'
 import { siteVisualConfig } from '../siteVisualConfig'
 import { shadowMapModes, type ShadowMapMode } from '../shadowMapModes'
@@ -29,6 +31,10 @@ function isValidScene(id: string | undefined): id is ShadowMapMode {
   return !!id && (shadowMapModes as readonly string[]).includes(id)
 }
 
+function isValidBackgroundMode(id: string | null): id is BackgroundMode {
+  return !!id && backgroundModes.some((mode) => mode.label === id)
+}
+
 function readNumber(params: URLSearchParams, key: string, fallback: number) {
   const raw = params.get(key)
   if (raw === null || raw === '') return fallback
@@ -46,7 +52,9 @@ export default function Lab() {
   const resolvedSceneId: ShadowMapMode = isValidScene(sceneId) ? sceneId : 'pool'
 
   const shadowPresetParam = searchParams.get('shadowPreset')
+  const sunGradientModeParam = searchParams.get('sunGradientMode')
   const shadowPresetId: ShadowMapMode = shadowPresetParam && isValidScene(shadowPresetParam) ? shadowPresetParam : resolvedSceneId
+  const sunGradientMode = isValidBackgroundMode(sunGradientModeParam) ? sunGradientModeParam : siteVisualConfig.background
   const sunAngle = readNumber(searchParams, 'sun', DEFAULT_SUN)
   const textOpacity = readNumber(searchParams, 'textOpacity', DEFAULT_TEXT_OPACITY)
   const homeIntroStyle = getHomeIntroStyle()
@@ -66,10 +74,12 @@ export default function Lab() {
         shadowEnabled: readEnabled(searchParams, 'shadow'),
         shadowPresetId,
         sunAngle,
+        sunGradientEnabled: readEnabled(searchParams, 'sunGradient'),
+        sunGradientMode,
         textEnabled: readEnabled(searchParams, 'text'),
         textOpacity,
       }),
-    [resolvedSceneId, searchParams, shadowPresetId, sunAngle, textOpacity],
+    [resolvedSceneId, searchParams, shadowPresetId, sunAngle, sunGradientMode, textOpacity],
   )
 
   if (!isValidScene(sceneId)) {
@@ -108,11 +118,20 @@ export default function Lab() {
       setShadowParam={setQuery}
       setShadowPreset={(presetId) => setQuery('shadowPreset', presetId)}
       setSunAngle={(value) => setQuery('sun', value)}
+      setSunGradientMode={(mode) => setQuery('sunGradientMode', mode)}
       setTextOpacity={(value) => setQuery('textOpacity', value)}
       shadowSettings={shadowSettings}
     >
       {scene.layers.map((layer) => {
         if (!layer.enabled) return null
+        if (layer.kind === 'sunGradient') {
+          const mode = backgroundModes.find((backgroundMode) => backgroundMode.label === layer.config.mode) ?? backgroundModes[0]
+          return (
+            <div className="lab__render-layer lab__sun-gradient-layer" key={layer.id}>
+              <HomeSunGradientLayer mode={mode} sunAngle={scene.config.sunAngle} />
+            </div>
+          )
+        }
         if (layer.kind === 'text') {
           return (
             <div

@@ -452,6 +452,17 @@
   pointer-events: none;
 }
 
+.lab__sun-gradient-layer {
+  z-index: 0;
+}
+
+.lab__sun-gradient-layer .background-shader-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
 .lab__shadow-layer {
   z-index: 2;
 }

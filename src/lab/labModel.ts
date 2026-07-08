@@ -1,3 +1,4 @@
+import type { BackgroundMode } from '../HomeSunGradientConfig'
 import type { ShadowMapMode } from '../shadowMapModes'
 
 export type LabScene = {
@@ -19,6 +20,18 @@ export type ShadowLayerConfig = {
   presetId: ShadowMapMode
 }
 
+export type SunGradientLayerConfig = {
+  mode: BackgroundMode
+}
+
+export type SunGradientLabLayer = {
+  config: SunGradientLayerConfig
+  enabled: boolean
+  id: 'sunGradient'
+  kind: 'sunGradient'
+  name: string
+}
+
 export type TextLabLayer = {
   config: TextLayerConfig
   enabled: boolean
@@ -35,13 +48,15 @@ export type ShadowLabLayer = {
   name: string
 }
 
-export type LabLayer = TextLabLayer | ShadowLabLayer
+export type LabLayer = SunGradientLabLayer | TextLabLayer | ShadowLabLayer
 
 export function buildLabScene({
   sceneId,
   shadowEnabled,
   shadowPresetId,
   sunAngle,
+  sunGradientEnabled,
+  sunGradientMode,
   textEnabled,
   textOpacity,
 }: {
@@ -49,6 +64,8 @@ export function buildLabScene({
   shadowEnabled: boolean
   shadowPresetId: ShadowMapMode
   sunAngle: number
+  sunGradientEnabled: boolean
+  sunGradientMode: BackgroundMode
   textEnabled: boolean
   textOpacity: number
 }): LabScene {
@@ -56,6 +73,13 @@ export function buildLabScene({
     config: { sunAngle },
     id: sceneId,
     layers: [
+      {
+        config: { mode: sunGradientMode },
+        enabled: sunGradientEnabled,
+        id: 'sunGradient',
+        kind: 'sunGradient',
+        name: 'Sun gradient',
+      },
       {
         config: { opacity: textOpacity },
         enabled: textEnabled,
