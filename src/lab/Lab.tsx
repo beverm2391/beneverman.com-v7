@@ -1,161 +1,145 @@
-import { useMemo } from 'react'
-import { Navigate, useParams, useSearchParams } from 'react-router-dom'
-import { HomeIntro } from '../HomeIntro'
-import { backgroundModes, type BackgroundMode } from '../HomeSunGradientConfig'
-import { HomeSunGradientLayer } from '../HomeSunGradientLayer'
-import { getHomeIntroStyle } from '../homeVisualConfig'
-import { siteVisualConfig } from '../siteVisualConfig'
-import { shadowMapModes, type ShadowMapMode } from '../shadowMapModes'
-import V2ShadowLayer, { type ShadowSettings } from '../V2ShadowLayer'
-import { LabShell, type LabControl } from './LabShell'
-import { buildLabScene, type LabLayer } from './labModel'
-import './coss.css'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { createLayerInstance, createScene } from './layers'
+import { LayerStack } from './LayerStack'
+import {
+  cloneScene,
+  moveLayer,
+  removeLayer,
+  slugify,
+  updateLayer,
+  withLayer,
+  type LayerType,
+  type Scene,
+} from './scene'
+import { deleteScene as deleteSceneOnDisk, listScenes, saveScene as saveSceneToDisk } from './scenesClient'
+import { LabSidebar, type LabActions } from './LabSidebar'
 import './Lab.css'
 
-const NEUTRAL_TINT = [0.08, 0.09, 0.12] as const
-const DEFAULT_SUN = siteVisualConfig.shadowSettings.sunAngle
-const DEFAULT_TEXT_OPACITY = 1
-
-const SHADOW_CONTROLS: LabControl[] = [
-  { key: 'lightRays', label: 'Light rays', min: 0, max: 1, step: 0.01 },
-  { key: 'rayDiffusion', label: 'Ray diffusion', min: 0, max: 1, step: 0.01 },
-  { key: 'lightGlow', label: 'Light glow', min: 0, max: 1, step: 0.01 },
-  { key: 'opacity', label: 'Shadow opacity', min: 0, max: 0.6, step: 0.01 },
-  { key: 'contrast', label: 'Contrast', min: 0, max: 1.5, step: 0.01 },
-  { key: 'depthMix', label: 'Depth mix', min: 0, max: 1, step: 0.01 },
-  { key: 'density', label: 'Density', min: 0.2, max: 2, step: 0.05 },
-  { key: 'scale', label: 'Scale', min: 0.5, max: 2.5, step: 0.05 },
-]
-
-function isValidScene(id: string | undefined): id is ShadowMapMode {
-  return !!id && (shadowMapModes as readonly string[]).includes(id)
-}
-
-function isValidBackgroundMode(id: string | null): id is BackgroundMode {
-  return !!id && backgroundModes.some((mode) => mode.label === id)
-}
-
-function readNumber(params: URLSearchParams, key: string, fallback: number) {
-  const raw = params.get(key)
-  if (raw === null || raw === '') return fallback
-  const value = Number(raw)
-  return Number.isFinite(value) ? value : fallback
-}
-
-function readEnabled(params: URLSearchParams, layerId: LabLayer['id']) {
-  return params.get(`${layerId}Enabled`) !== '0'
-}
-
 export default function Lab() {
-  const { sceneId } = useParams()
   const [searchParams, setSearchParams] = useSearchParams()
-  const resolvedSceneId: ShadowMapMode = isValidScene(sceneId) ? sceneId : 'pool'
+  const [savedScenes, setSavedScenes] = useState<Scene[]>([])
+  const [scene, setScene] = useState<Scene | null>(null)
+  const [dirty, setDirty] = useState(false)
+  const [status, setStatus] = useState('')
 
-  const shadowPresetParam = searchParams.get('shadowPreset')
-  const sunGradientModeParam = searchParams.get('sunGradientMode')
-  const shadowPresetId: ShadowMapMode = shadowPresetParam && isValidScene(shadowPresetParam) ? shadowPresetParam : resolvedSceneId
-  const sunGradientMode = isValidBackgroundMode(sunGradientModeParam) ? sunGradientModeParam : siteVisualConfig.background
-  const sunAngle = readNumber(searchParams, 'sun', DEFAULT_SUN)
-  const textOpacity = readNumber(searchParams, 'textOpacity', DEFAULT_TEXT_OPACITY)
-  const homeIntroStyle = getHomeIntroStyle()
-
-  const shadowSettings = useMemo<ShadowSettings>(() => {
-    const base = { ...siteVisualConfig.shadowSettings } as ShadowSettings
-    for (const { key } of SHADOW_CONTROLS) {
-      base[key] = readNumber(searchParams, key, base[key])
-    }
-    return base
-  }, [searchParams])
-
-  const scene = useMemo(
-    () =>
-      buildLabScene({
-        sceneId: resolvedSceneId,
-        shadowEnabled: readEnabled(searchParams, 'shadow'),
-        shadowPresetId,
-        sunAngle,
-        sunGradientEnabled: readEnabled(searchParams, 'sunGradient'),
-        sunGradientMode,
-        textEnabled: readEnabled(searchParams, 'text'),
-        textOpacity,
-      }),
-    [resolvedSceneId, searchParams, shadowPresetId, sunAngle, sunGradientMode, textOpacity],
+  const selectInto = useCallback(
+    (next: Scene) => {
+      setScene(cloneScene(next))
+      setDirty(false)
+      setSearchParams(
+        (prev) => {
+          const params = new URLSearchParams(prev)
+          params.set('scene', next.id)
+          return params
+        },
+        { replace: true },
+      )
+    },
+    [setSearchParams],
   )
 
-  if (!isValidScene(sceneId)) {
-    return <Navigate to="/lab/pool" replace />
-  }
+  // Load disk scenes on mount; seed a starter if the store is empty.
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        let scenes = await listScenes()
+        if (scenes.length === 0) {
+          const starter = createScene('Sundial')
+          await saveSceneToDisk(starter)
+          scenes = [starter]
+        }
+        if (cancelled) return
+        setSavedScenes(scenes)
+        const wanted = searchParams.get('scene')
+        const initial = scenes.find((s) => s.id === wanted) ?? scenes[0]
+        setScene(cloneScene(initial))
+        setDirty(false)
+      } catch (error) {
+        if (!cancelled) setStatus(`load failed: ${String(error)}`)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+    // Run once — the scene deep-link is read on first load only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-  const setQuery = (key: string, value: string | number | null) => {
-    setSearchParams(
-      (prev) => {
-        const next = new URLSearchParams(prev)
-        if (value === null) next.delete(key)
-        else next.set(key, String(value))
-        return next
+  const edit = useCallback((next: (scene: Scene) => Scene) => {
+    setScene((current) => (current ? next(current) : current))
+    setDirty(true)
+  }, [])
+
+  const actions = useMemo<LabActions>(
+    () => ({
+      selectScene: (id) => {
+        const target = savedScenes.find((s) => s.id === id)
+        if (target) selectInto(target)
       },
-      { replace: true },
-    )
-  }
+      newScene: () => selectInto(createScene('Untitled')),
+      duplicateScene: () =>
+        setScene((current) => {
+          if (!current) return current
+          const copyName = `${current.name} copy`
+          setDirty(true)
+          return { ...cloneScene(current), id: slugify(copyName), name: copyName }
+        }),
+      renameScene: (name) => edit((current) => ({ ...current, name, id: slugify(name) })),
+      deleteScene: async () => {
+        if (!scene) return
+        try {
+          await deleteSceneOnDisk(scene.id)
+          const remaining = savedScenes.filter((s) => s.id !== scene.id)
+          setSavedScenes(remaining)
+          selectInto(remaining[0] ?? createScene('Sundial'))
+          setStatus('deleted')
+        } catch (error) {
+          setStatus(`delete failed: ${String(error)}`)
+        }
+      },
+      saveScene: async () => {
+        if (!scene) return
+        try {
+          await saveSceneToDisk(scene)
+          setSavedScenes(await listScenes())
+          setDirty(false)
+          setStatus('saved')
+        } catch (error) {
+          setStatus(`save failed: ${String(error)}`)
+        }
+      },
+      copyJson: () => {
+        if (scene) navigator.clipboard?.writeText(JSON.stringify(scene, null, 2))
+        setStatus('copied JSON')
+      },
+      setSunAngle: (value) => edit((current) => ({ ...current, sunAngle: value })),
+      addLayer: (type: LayerType) => edit((current) => withLayer(current, createLayerInstance(type))),
+      removeLayer: (instanceId) => edit((current) => removeLayer(current, instanceId)),
+      toggleLayer: (instanceId) =>
+        edit((current) => updateLayer(current, instanceId, (layer) => ({ ...layer, enabled: !layer.enabled }))),
+      setLayerConfig: (instanceId, key, value) =>
+        edit((current) =>
+          updateLayer(current, instanceId, (layer) => ({ ...layer, config: { ...layer.config, [key]: value } })),
+        ),
+      reorderLayer: (from, to) => edit((current) => moveLayer(current, from, to)),
+    }),
+    [savedScenes, scene, selectInto, edit],
+  )
 
-  const sceneLink = (mode: ShadowMapMode) => ({
-    pathname: `/lab/${mode}`,
-    search: searchParams.toString(),
-  })
-
-  const copyJson = () => {
-    navigator.clipboard?.writeText(JSON.stringify({ scene, shadowSettings }, null, 2))
+  if (!scene) {
+    return <div className="lab lab--loading">{status || 'loading lab…'}</div>
   }
 
   return (
-    <LabShell
-      controls={SHADOW_CONTROLS}
-      copyJson={copyJson}
-      scene={scene}
-      sceneLink={sceneLink}
-      scenes={shadowMapModes}
-      setLayerEnabled={(layerId, enabled) => setQuery(`${layerId}Enabled`, enabled ? 1 : 0)}
-      setShadowParam={setQuery}
-      setShadowPreset={(presetId) => setQuery('shadowPreset', presetId)}
-      setSunAngle={(value) => setQuery('sun', value)}
-      setSunGradientMode={(mode) => setQuery('sunGradientMode', mode)}
-      setTextOpacity={(value) => setQuery('textOpacity', value)}
-      shadowSettings={shadowSettings}
-    >
-      {scene.layers.map((layer) => {
-        if (!layer.enabled) return null
-        if (layer.kind === 'sunGradient') {
-          const mode = backgroundModes.find((backgroundMode) => backgroundMode.label === layer.config.mode) ?? backgroundModes[0]
-          return (
-            <div className="lab__render-layer lab__sun-gradient-layer" key={layer.id}>
-              <HomeSunGradientLayer mode={mode} sunAngle={scene.config.sunAngle} />
-            </div>
-          )
-        }
-        if (layer.kind === 'text') {
-          return (
-            <div
-              className="lab__render-layer lab__homepage-text-layer"
-              key={layer.id}
-              style={{ ...homeIntroStyle, opacity: layer.config.opacity }}
-            >
-              <HomeIntro />
-            </div>
-          )
-        }
-        return (
-          <div className="lab__render-layer lab__shadow-layer" key={layer.id}>
-            <V2ShadowLayer
-              crispnessScale={1}
-              mode={layer.config.presetId}
-              opacityScale={1}
-              settings={shadowSettings}
-              shadowTint={NEUTRAL_TINT}
-              sunAngle={scene.config.sunAngle}
-            />
-          </div>
-        )
-      })}
-    </LabShell>
+    <div className="lab">
+      <LabSidebar actions={actions} dirty={dirty} savedScenes={savedScenes} scene={scene} status={status} />
+      <div className="lab__stage">
+        <div className="lab__viewer">
+          <LayerStack scene={scene} />
+        </div>
+      </div>
+    </div>
   )
 }

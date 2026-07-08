@@ -1,0 +1,35 @@
+{
+  "id": "sundial",
+  "name": "Sundial",
+  "sunAngle": 2.95,
+  "layers": [
+    {
+      "instanceId": "layer-shadow-01",
+      "type": "shadow",
+      "enabled": true,
+      "config": {
+        "preset": "sundial",
+        "lightRays": 0.5,
+        "rayDiffusion": 0.3,
+        "lightGlow": 0.6,
+        "opacity": 0.19,
+        "contrast": 0.9,
+        "depthMix": 0.75,
+        "density": 1,
+        "scale": 1.4
+      }
+    },
+    {
+      "instanceId": "layer-text-01",
+      "type": "text",
+      "enabled": true,
+      "config": { "opacity": 1 }
+    },
+    {
+      "instanceId": "layer-gradient-01",
+      "type": "sunGradient",
+      "enabled": true,
+      "config": { "mode": "paper" }
+    }
+  ]
+}

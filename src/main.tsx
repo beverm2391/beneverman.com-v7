@@ -13,12 +13,12 @@ if (__VERCEL_PRODUCTION_DEPLOY__) {
     </StrictMode>,
   )
 } else {
-  const { createBrowserRouter, Navigate, RouterProvider } = await import('react-router-dom')
+  const { createBrowserRouter, RouterProvider } = await import('react-router-dom')
   const Lab = lazy(() => import('./lab/Lab.tsx'))
+  // Scene selection lives in-app (?scene=<id>), so the lab is a single route.
   const labRoutes: RouteObject[] = [
-    { path: '/lab', element: <Navigate to="/lab/pool" replace /> },
     {
-      path: '/lab/:sceneId',
+      path: '/lab',
       element: (
         <Suspense fallback={null}>
           <Lab />
