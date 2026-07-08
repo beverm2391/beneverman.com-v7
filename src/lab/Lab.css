@@ -1,0 +1,130 @@
+/* Lab shell — placeholder editor chrome. Layout only; the panel contents get
+   rebuilt with real UI primitives during co-design. Grid: top bar / (sidebar +
+   preview) / bottom bar. */
+
+.lab {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  background: #e9e6e1;
+  color: #171717;
+  font-family: var(--sans);
+  font-size: 12px;
+}
+
+.lab__topbar,
+.lab__bottombar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 12px;
+  background: #f2f0ee;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.lab__bottombar {
+  border-bottom: none;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.lab__scenes {
+  display: flex;
+  gap: 4px;
+}
+
+.lab__scene {
+  padding: 4px 10px;
+  border-radius: 6px;
+  text-decoration: none;
+  color: #6b6b6b;
+  text-transform: lowercase;
+}
+
+.lab__scene--active {
+  background: #171717;
+  color: #f2f0ee;
+}
+
+.lab__sun {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+  color: #6b6b6b;
+}
+
+.lab__body {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  min-height: 0;
+}
+
+.lab__sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 14px;
+  background: #f2f0ee;
+  border-right: 1px solid rgba(0, 0, 0, 0.08);
+  overflow-y: auto;
+}
+
+.lab__control {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.lab__control-label {
+  display: flex;
+  justify-content: space-between;
+  color: #4a4a4a;
+}
+
+.lab__control-label em {
+  font-family: var(--mono);
+  font-style: normal;
+  color: #9a9a9a;
+  font-variant-numeric: tabular-nums;
+}
+
+.lab__control input[type='range'],
+.lab__sun input[type='range'] {
+  width: 100%;
+  accent-color: #171717;
+}
+
+.lab__sun input[type='range'] {
+  width: 160px;
+}
+
+/* Preview stage: paper ground the shadow/light layer composites over. The
+   renderer mounts its own transparent canvas here. */
+.lab__preview {
+  position: relative;
+  background: #f2f0ee;
+  overflow: hidden;
+}
+
+.lab__status {
+  color: #6b6b6b;
+  text-transform: lowercase;
+  font-variant-numeric: tabular-nums;
+}
+
+.lab__copy {
+  padding: 5px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 6px;
+  background: #fff;
+  color: #171717;
+  cursor: pointer;
+  font: inherit;
+}
+
+.lab__copy:hover {
+  background: #171717;
+  color: #f2f0ee;
+}

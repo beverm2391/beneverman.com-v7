@@ -2,7 +2,6 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { emitDebugTimelineEvent } from './debugTimeline'
-import { createBlobLSystemSource } from './lSystemShadowSource'
 import {
   canopyClumps,
   getDensityCount,
@@ -15,7 +14,7 @@ import {
 import type { CanopyStyle, ShadowMapMode } from './shadowMapModes'
 import { publishShadowSourcePreview, type ShadowSourceSamplerPoint } from './shadowSourcePreview'
 
-type ShadowSettings = {
+export type ShadowSettings = {
   blindStrength: number
   canopyStrength: number
   canopyStyle: CanopyStyle
@@ -287,14 +286,6 @@ function addRect(parent: THREE.Object3D, x: number, y: number, width: number, he
   parent.add(rect)
 }
 
-function addEllipse(scene: THREE.Scene, geometry: THREE.BufferGeometry, x: number, y: number, radiusX: number, radiusY: number, depth: number, rotation = 0, strength = 1) {
-  const ellipse = new THREE.Mesh(geometry, makeCasterMaterial(depth, strength))
-  ellipse.position.set(x, y, 0)
-  ellipse.rotation.z = rotation
-  ellipse.scale.set(radiusX, radiusY, 1)
-  scene.add(ellipse)
-}
-
 // A leaf spray: a short twig with alternating leaflets shrinking toward the
 // terminal leaf at the tip. Foliage shadows read as sprays attached to
 // structure, not as isolated leaves floating in space.
@@ -555,55 +546,6 @@ function addWindow(scene: THREE.Scene, settings: ShadowSettings, strength = 1) {
   }
 }
 
-function addPaper(scene: THREE.Scene, settings: ShadowSettings) {
-  addRect(scene, -0.62, 0.78, 1.7 * settings.scale, 0.52 * settings.scale, 0.38, -0.08)
-  addRect(scene, 0.66, 0.42, 1.25 * settings.scale, 0.72 * settings.scale, 0.54, 0.14)
-  addRect(scene, -0.54, -0.78, 1.45 * settings.scale, 0.52 * settings.scale, 0.7, 0.08)
-  addRect(scene, 0.78, -0.8, 0.88 * settings.scale, 0.5 * settings.scale, 0.46, -0.12)
-}
-
-function addBranch(scene: THREE.Scene, leafGeometry: THREE.BufferGeometry, settings: ShadowSettings) {
-  for (let index = 0; index < getDensityCount(4, settings.density); index += 1) {
-    const seed = 1100 + index * 41
-    const x = -0.9 + stableNoise(seed) * 0.32
-    const y = 0.58 - index * 0.38 + stableNoise(seed + 5) * 0.16
-    const length = (1.65 + stableNoise(seed + 11) * 0.38) * settings.scale
-    const thickness = (0.035 + index * 0.008) * settings.scale
-    const rotation = -0.2 + stableNoise(seed + 17) * 0.45
-
-    addRect(scene, x + length * 0.45, y, length, thickness, 0.42 + index * 0.09, rotation)
-
-    for (let twig = 0; twig < getDensityCount(7, settings.density); twig += 1) {
-      const twigSeed = seed + twig * 13
-      const t = 0.18 + twig * 0.11
-      const side = twig % 2 === 0 ? -1 : 1
-      addRect(
-        scene,
-        x + length * t,
-        y + side * (0.08 + stableNoise(twigSeed) * 0.06),
-        (0.22 + stableNoise(twigSeed + 3) * 0.18) * settings.scale,
-        0.015 * settings.scale,
-        0.48 + stableNoise(twigSeed + 7) * 0.24,
-        rotation + side * (0.78 + stableNoise(twigSeed + 11) * 0.36),
-      )
-    }
-  }
-
-  for (let index = 0; index < getDensityCount(22, settings.density); index += 1) {
-    const seed = 1300 + index * 17
-    addLeaf(
-      scene,
-      leafGeometry,
-      -0.92 + stableNoise(seed) * 1.84,
-      -0.86 + stableNoise(seed + 3) * 1.72,
-      (0.05 + stableNoise(seed + 5) * 0.07) * settings.scale,
-      (0.017 + stableNoise(seed + 7) * 0.02) * settings.scale,
-      0.36 + stableNoise(seed + 11) * 0.42,
-      -Math.PI + stableNoise(seed + 13) * Math.PI * 2,
-    )
-  }
-}
-
 // Light pool: the inverse of every other scene. Instead of casters scattered
 // on clean paper, a translucent "wall" covers the whole page with one
 // window-shaped aperture cut out, so the unshadowed hole reads as a warm
@@ -689,25 +631,6 @@ function addLightPool(scene: THREE.Scene, leafGeometries: THREE.BufferGeometry[]
 // caster with uniform strength (the page reads through it), so all the life
 // is in the silhouette: useFrame displaces the plane's vertices with a wave
 // that ramps from zero at the pinned edge to full at the free end.
-function addCurtain(scene: THREE.Scene, _settings: ShadowSettings) {
-  const curtain = new THREE.Group()
-  curtain.name = 'curtain'
-
-  // free edge stops just short of the text column; the sheet overshoots the
-  // left/top/bottom frame edges so only the free edge silhouette is visible
-  const width = 1.0
-  const geometry = new THREE.PlaneGeometry(width, 3.6, 48, 10)
-  const mesh = new THREE.Mesh(geometry, makeCasterMaterial(0.26, 0.32))
-  mesh.position.set(-1.22 + width / 2, 0, 0)
-  mesh.userData = {
-    basePositions: Float32Array.from(geometry.attributes.position.array as Float32Array),
-    width,
-  }
-  curtain.add(mesh)
-
-  scene.add(curtain)
-}
-
 // Sundial: a slender gnomon spike whose shadow pivots around its base as the
 // animated sun sweeps the day -- the one scene where the sun's movement over
 // time is unmistakable. The silhouette is the gnomon's cast shadow: a long
@@ -770,35 +693,16 @@ function buildSourceScene(mode: ShadowMapMode, settings: ShadowSettings) {
       : settings.canopyStyle === 'sparse'
         ? makeBroadLeafGeometryVariants()
         : makeLeafGeometryVariants()
-  const ellipseGeometry = new THREE.CircleGeometry(1, 32)
-
   if (mode === 'canopy') addCanopy(scene, leafGeometries, settings)
   if (mode === 'window') addWindow(scene, settings)
-  if (mode === 'paper') addPaper(scene, settings)
-  if (mode === 'branch') addBranch(scene, leafGeometries[0], settings)
   if (mode === 'mixed') {
     addWindow(scene, settings, settings.blindStrength)
     addCanopy(scene, leafGeometries, settings, settings.canopyStrength)
   }
   if (mode === 'pool') addLightPool(scene, leafGeometries, settings)
-  if (mode === 'curtain') addCurtain(scene, settings)
   if (mode === 'sundial') addSundial(scene, settings)
   // 'sun' builds nothing: clean paper, background glow only -- the floor of
   // minimal, kept as a selectable reference point
-  if (mode === 'blobs') {
-    createBlobLSystemSource(settings.density).blobs.forEach((blob) => {
-      addEllipse(
-        scene,
-        ellipseGeometry,
-        blob.x,
-        blob.y,
-        blob.radiusX * settings.scale,
-        blob.radiusY * settings.scale,
-        blob.depth,
-        blob.rotation,
-      )
-    })
-  }
 
   scene.traverse((object) => {
     if (object instanceof THREE.Mesh) object.renderOrder = 1
@@ -956,7 +860,6 @@ function SourceSceneShadowPlane({ crispnessScale, mode, settings, shadowTint, sh
   useFrame(({ clock }) => {
     const animatedTime = clock.elapsedTime * settings.speed
     const canopyGroup = sourceScene.getObjectByName('canopy')
-    const curtainGroup = sourceScene.getObjectByName('curtain')
     const sundialGroup = sourceScene.getObjectByName('sundial')
     const poolGroup = sourceScene.getObjectByName('lightpool')
 
@@ -972,24 +875,6 @@ function SourceSceneShadowPlane({ crispnessScale, mode, settings, shadowTint, sh
         clump.position.x = baseX + Math.sin(animatedTime * 0.21 + phase) * 0.016 * settings.wind
         clump.position.y = baseY + Math.cos(animatedTime * 0.27 + phase * 1.4) * 0.009 * settings.wind
       }
-    } else if (curtainGroup) {
-      // flag-wave: displace the sheet's vertices horizontally with two
-      // incommensurate waves traveling up the panel. Amplitude ramps from
-      // zero at the pinned left edge to full at the free edge, so the fabric
-      // flows from its anchor instead of sliding as a rigid block.
-      const sheet = curtainGroup.children[0] as THREE.Mesh
-      const positionAttribute = sheet.geometry.attributes.position as THREE.BufferAttribute
-      const { basePositions, width } = sheet.userData as { basePositions: Float32Array; width: number }
-      for (let vertex = 0; vertex < positionAttribute.count; vertex += 1) {
-        const baseX = basePositions[vertex * 3]
-        const baseY = basePositions[vertex * 3 + 1]
-        const reach = (baseX + width / 2) / width
-        const wave =
-          Math.sin(baseY * 2.1 - animatedTime * 0.9 + reach * 2.6) +
-          Math.sin(baseY * 4.7 + animatedTime * 1.4 + reach * 4.2) * 0.35
-        positionAttribute.setX(vertex, baseX + wave * 0.085 * reach ** 1.6 * settings.wind)
-      }
-      positionAttribute.needsUpdate = true
     } else if (sundialGroup) {
       // sundial: pivot the gnomon's shadow about its base opposite the sun's
       // travel, long at sunrise/sunset and short at noon. sunAngle is the
