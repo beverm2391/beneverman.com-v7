@@ -7,15 +7,18 @@ import {
   canopyClumps,
   getDensityCount,
   getWindowRects,
+  makeBroadLeafGeometryVariants,
   makeLeafGeometryVariants,
+  makeWillowLeafGeometryVariants,
   stableNoise,
 } from './shadowFoliage'
-import type { ShadowMapMode } from './shadowMapModes'
+import type { CanopyStyle, ShadowMapMode } from './shadowMapModes'
 import { publishShadowSourcePreview, type ShadowSourceSamplerPoint } from './shadowSourcePreview'
 
 type ShadowSettings = {
   blindStrength: number
   canopyStrength: number
+  canopyStyle: CanopyStyle
   contrast: number
   crispness: number
   density: number
@@ -290,13 +293,166 @@ function addSprig(
   parent.add(sprig)
 }
 
+// Aesthetic parameterizations for the bough generator. All three aim for a
+// calm, real-life read: airier than a full canopy, with light moving through
+// gaps. Chosen from the debug panel via settings.canopyStyle.
+type CanopyStyleParams = {
+  boughsPerClump: number
+  // probability a fork spawns a third child
+  childThree: number
+  // per-level pull of branch angles toward hanging down (0 = none)
+  droop: number
+  // chance of a small leaf spray at interior forks
+  forkSpray: number
+  leafletSize: [number, number]
+  lengthKeep: [number, number]
+  maxLevel: number
+  rootLength: [number, number]
+  rootThickness: number
+  // chance a terminal tip stays bare (dappled light gaps)
+  tipSkip: number
+}
+
+const canopyStyleParams: Record<CanopyStyle, CanopyStyleParams> = {
+  // recognizable oak: forking limbs, notched leaves, moderate coverage
+  oak: {
+    boughsPerClump: 2,
+    childThree: 0.3,
+    droop: 0,
+    forkSpray: 0.28,
+    leafletSize: [0.03, 0.02],
+    lengthKeep: [0.56, 0.18],
+    maxLevel: 3,
+    rootLength: [0.45, 0.18],
+    rootThickness: 0.018,
+    tipSkip: 0.3,
+  },
+  // one long limb per clump sagging under gravity, slender leaves -- the
+  // classic calm branch-in-the-breeze silhouette
+  willow: {
+    boughsPerClump: 1,
+    childThree: 0.15,
+    droop: 0.3,
+    forkSpray: 0.15,
+    leafletSize: [0.042, 0.02],
+    lengthKeep: [0.66, 0.16],
+    maxLevel: 4,
+    rootLength: [0.55, 0.2],
+    rootThickness: 0.014,
+    tipSkip: 0.12,
+  },
+  // a few broad-leafed twigs and lots of air
+  sparse: {
+    boughsPerClump: 1,
+    childThree: 0,
+    droop: 0.1,
+    forkSpray: 0.1,
+    leafletSize: [0.05, 0.025],
+    lengthKeep: [0.6, 0.15],
+    maxLevel: 2,
+    rootLength: [0.4, 0.15],
+    rootThickness: 0.013,
+    tipSkip: 0.15,
+  },
+}
+
+// A connected bough, grown recursively: each segment starts exactly at its
+// parent's endpoint and either forks into thinner children or terminates in
+// a leaf spray. Connectivity is by construction -- the previous scattered
+// sprigs used half-length stems aimed at the clump core, which left visibly
+// floating branches once the caster map got sharp enough to show it.
+function addBough(
+  parent: THREE.Object3D,
+  leafGeometries: THREE.BufferGeometry[],
+  settings: ShadowSettings,
+  params: CanopyStyleParams,
+  strength: number,
+  seed: number,
+  x: number,
+  y: number,
+  angle: number,
+  length: number,
+  thickness: number,
+  depthBias: number,
+  level: number,
+) {
+  // droop pulls each generation toward hanging straight down, like a limb
+  // sagging under its own weight
+  const hangDown = -Math.PI / 2
+  const droopedAngle = angle + (hangDown - angle) * params.droop * Math.min(1, level * 0.5)
+  const endX = x + Math.cos(droopedAngle) * length
+  const endY = y + Math.sin(droopedAngle) * length
+  // the red "depth" channel is a caster-size: every caster pixel renders as
+  // a disk of that radius, so foliage must stay near-plane (~0.1) or the
+  // blur dilates away silhouette detail. Thick parents sit slightly deeper.
+  const depth = Math.min(0.9, Math.max(0.04, 0.11 - level * 0.02) + depthBias)
+  addRect(parent, (x + endX) / 2, (y + endY) / 2, length, thickness, depth, droopedAngle, strength)
+
+  if (level >= params.maxLevel || thickness < 0.006) {
+    // terminal leaf spray continuing the branch line; skipping a fraction of
+    // tips keeps dappled light gaps in the mass
+    if (stableNoise(seed + 2) < params.tipSkip) return
+    addSprig(
+      parent,
+      leafGeometries,
+      endX,
+      endY,
+      droopedAngle + (stableNoise(seed + 3) - 0.5) * 0.9,
+      (params.leafletSize[0] + stableNoise(seed + 5) * params.leafletSize[1]) * settings.scale,
+      0.05 + stableNoise(seed + 7) * 0.06 + depthBias,
+      strength,
+      seed,
+    )
+    return
+  }
+
+  const childCount = stableNoise(seed + 11) < params.childThree ? 3 : 2
+  for (let child = 0; child < childCount; child += 1) {
+    const childSeed = seed + 131 + child * 379
+    const fan = child / (childCount - 1) - 0.5
+    addBough(
+      parent,
+      leafGeometries,
+      settings,
+      params,
+      strength,
+      childSeed,
+      endX,
+      endY,
+      droopedAngle + fan * (0.85 + stableNoise(childSeed) * 0.5) + (stableNoise(childSeed + 1) - 0.5) * 0.3,
+      length * (params.lengthKeep[0] + stableNoise(childSeed + 2) * params.lengthKeep[1]),
+      Math.max(0.006, thickness * 0.62),
+      depthBias,
+      level + 1,
+    )
+  }
+
+  // occasional leaf spray at the fork so foliage isn't only at the rim
+  if (stableNoise(seed + 13) < params.forkSpray) {
+    addSprig(
+      parent,
+      leafGeometries,
+      endX,
+      endY,
+      droopedAngle + (stableNoise(seed + 17) - 0.5) * 2.4,
+      (params.leafletSize[0] * 0.85 + stableNoise(seed + 19) * params.leafletSize[1]) * settings.scale,
+      0.06 + stableNoise(seed + 23) * 0.05 + depthBias,
+      strength,
+      seed + 29,
+    )
+  }
+}
+
 // Real canopy shadows read as connected foliage masses with light dappled
 // through gaps, not scattered individual leaves. Each clump is its own group
 // (anchored mostly along the top edge, hanging into view) so the wind can
-// sway them independently while the window blinds stay rigid.
+// sway them independently while the window blinds stay rigid. Inside a clump,
+// boughs enter from the clump rim and branch recursively toward/through the
+// center, so every twig traces back to a limb.
 function addCanopy(scene: THREE.Scene, leafGeometries: THREE.BufferGeometry[], settings: ShadowSettings, strength = 1) {
   const canopy = new THREE.Group()
   canopy.name = 'canopy'
+  const params = canopyStyleParams[settings.canopyStyle] ?? canopyStyleParams.oak
 
   canopyClumps.forEach((clump, clumpIndex) => {
     const group = new THREE.Group()
@@ -304,68 +460,28 @@ function addCanopy(scene: THREE.Scene, leafGeometries: THREE.BufferGeometry[], s
     group.userData = { baseX: clump.x, baseY: clump.y, phase: clumpIndex * 1.7 }
 
     const baseSeed = 4200 + clumpIndex * 733
+    const boughCount = getDensityCount(params.boughsPerClump, settings.density)
 
-    // supporting branches running through the mass
-    addRect(group, 0, 0, clump.radius * 1.7 * settings.scale, 0.02 * settings.scale, 0.14 + clump.depthBias, clump.tilt, strength)
-    addRect(
-      group,
-      Math.cos(clump.tilt + 0.9) * clump.radius * 0.4,
-      Math.sin(clump.tilt + 0.9) * clump.radius * 0.4,
-      clump.radius * 0.9 * settings.scale,
-      0.013 * settings.scale,
-      0.11 + clump.depthBias,
-      clump.tilt + 0.9,
-      strength,
-    )
-
-    const sprigCount = getDensityCount(20, settings.density)
-    const gapAngle = stableNoise(baseSeed + 1) * Math.PI * 2
-
-    for (let index = 0; index < sprigCount; index += 1) {
-      const seed = baseSeed + index * 47
-      // dense overlapping core, ragged rim
-      const radial = Math.pow(stableNoise(seed), 0.55) * clump.radius
-      const theta = stableNoise(seed + 3) * Math.PI * 2
-      const rimFade = radial / clump.radius
-      // dappled gap: thin one angular wedge outside the core so light punches
-      // through the mass instead of the mass reading as a solid blob
-      const gapDistance = Math.abs(((theta - gapAngle + Math.PI * 3) % (Math.PI * 2)) - Math.PI)
-      if (gapDistance < 0.5 && rimFade > 0.4 && stableNoise(seed + 5) < 0.65) continue
-
-      const sprigX = Math.cos(theta) * radial * 1.12
-      const sprigY = Math.sin(theta) * radial * 0.82
-      // the red "depth" channel is a caster-size: every caster pixel renders
-      // as a disk of that radius, so any value much above ~0.1 dilates away
-      // silhouette detail smaller than the disk. Foliage must stay near-plane.
-      const sprigDepth = 0.04 + (1 - rimFade) * 0.05 + stableNoise(seed + 11) * 0.06 + clump.depthBias
-
-      // connective stem running back toward the clump core so rim sprigs
-      // read as attached to the branch web instead of floating
-      const stemAngle = Math.atan2(sprigY, sprigX)
-      const stemLength = radial * 0.55
-      if (stemLength > 0.03) {
-        addRect(
-          group,
-          sprigX - Math.cos(stemAngle) * stemLength * 0.5,
-          sprigY - Math.sin(stemAngle) * stemLength * 0.5,
-          stemLength,
-          0.009 * settings.scale,
-          Math.min(0.9, sprigDepth + 0.04),
-          stemAngle,
-          strength,
-        )
-      }
-
-      addSprig(
+    for (let bough = 0; bough < boughCount; bough += 1) {
+      const boughSeed = baseSeed + bough * 389
+      // enter from the clump rim aimed through the center, fanning subsequent
+      // boughs off the clump's tilt so limbs cross the mass at varied angles
+      const entryAngle =
+        clump.tilt + bough * (0.9 + (stableNoise(boughSeed) - 0.5) * 0.5)
+      addBough(
         group,
         leafGeometries,
-        sprigX,
-        sprigY,
-        theta + (stableNoise(seed + 7) - 0.5) * 1.4,
-        (0.031 + (1 - rimFade) * 0.033 + stableNoise(seed + 9) * 0.013) * settings.scale,
-        sprigDepth,
+        settings,
+        params,
         strength,
-        seed,
+        boughSeed,
+        -Math.cos(entryAngle) * clump.radius * 0.95,
+        -Math.sin(entryAngle) * clump.radius * 0.95,
+        entryAngle + (stableNoise(boughSeed + 7) - 0.5) * 0.35,
+        clump.radius * (params.rootLength[0] + stableNoise(boughSeed + 3) * params.rootLength[1]) * settings.scale,
+        params.rootThickness * settings.scale,
+        clump.depthBias,
+        0,
       )
     }
 
@@ -432,7 +548,12 @@ function addBranch(scene: THREE.Scene, leafGeometry: THREE.BufferGeometry, setti
 
 function buildSourceScene(mode: ShadowMapMode, settings: ShadowSettings) {
   const scene = new THREE.Scene()
-  const leafGeometries = makeLeafGeometryVariants()
+  const leafGeometries =
+    settings.canopyStyle === 'willow'
+      ? makeWillowLeafGeometryVariants()
+      : settings.canopyStyle === 'sparse'
+        ? makeBroadLeafGeometryVariants()
+        : makeLeafGeometryVariants()
   const ellipseGeometry = new THREE.CircleGeometry(1, 32)
 
   if (mode === 'canopy') addCanopy(scene, leafGeometries, settings)

@@ -6,7 +6,7 @@ import {
   subscribeDebugTimeline,
   type DebugTimelineEvent,
 } from './debugTimeline'
-import { shadowMapModes, type ShadowMapMode } from './shadowMapModes'
+import { canopyStyles, shadowMapModes, type CanopyStyle, type ShadowMapMode } from './shadowMapModes'
 import {
   getShadowSourcePreview,
   subscribeShadowSourcePreview,
@@ -32,6 +32,7 @@ function mixVec3(a: Vec3, b: Vec3, t: number): Vec3 {
 type ShadowSettings = {
   blindStrength: number
   canopyStrength: number
+  canopyStyle: CanopyStyle
   contrast: number
   crispness: number
   density: number
@@ -813,6 +814,18 @@ function DebugPanel({
         {shadowMapModes.map((mode) => (
           <button aria-pressed={currentMode === mode} key={mode} onClick={() => onChange(mode)} type="button">
             {mode}
+          </button>
+        ))}
+      </div>
+      <div className="shadow-map-buttons" aria-label="Canopy style">
+        {canopyStyles.map((style) => (
+          <button
+            aria-pressed={settings.canopyStyle === style}
+            key={style}
+            onClick={() => onSettingsChange({ ...settings, canopyStyle: style })}
+            type="button"
+          >
+            {style}
           </button>
         ))}
       </div>

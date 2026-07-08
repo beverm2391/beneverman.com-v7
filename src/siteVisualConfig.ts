@@ -7,6 +7,7 @@ export const siteVisualConfig = {
   shadowSettings: {
     blindStrength: 0.12,
     canopyStrength: 1,
+    canopyStyle: 'oak',
     contrast: 0.9,
     crispness: 3,
     density: 1,
@@ -39,6 +40,7 @@ export const siteVisualConfig = {
       shadowSettings: {
         blindStrength: 0.12,
         canopyStrength: 1,
+        canopyStyle: 'oak',
         contrast: 0.95,
         crispness: 3,
         density: 1.45,

@@ -69,6 +69,24 @@ export function makeLeafGeometryVariants() {
   ]
 }
 
+// long, slender, nearly smooth-margined leaves for the hanging willow look
+export function makeWillowLeafGeometryVariants() {
+  return [
+    makeOakLeafGeometry(2, 0.16, 0.15, 0.7),
+    makeOakLeafGeometry(2, 0.14, 0.13, 2.2),
+    makeOakLeafGeometry(3, 0.18, 0.16, 3.6),
+  ]
+}
+
+// broad, softly lobed leaves that read calm at low density
+export function makeBroadLeafGeometryVariants() {
+  return [
+    makeOakLeafGeometry(3, 0.34, 0.42, 1.1),
+    makeOakLeafGeometry(3, 0.3, 0.38, 2.8),
+    makeOakLeafGeometry(4, 0.36, 0.4, 4.2),
+  ]
+}
+
 // Foliage masses hung mostly along the top edge. depthBias sets
 // distance-from-window per clump: near-zero keeps leaf silhouettes tight,
 // the biased clump renders as a soft far layer.
