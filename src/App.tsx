@@ -1293,6 +1293,13 @@ function DebugPanel({
 }
 
 function App() {
+  if (
+    __VERCEL_PRODUCTION_DEPLOY__ &&
+    (window.location.pathname !== '/' || window.location.search || window.location.hash)
+  ) {
+    window.history.replaceState(null, '', '/')
+  }
+
   const isDebug = useDebugMode()
   const isSunIconLab = window.location.pathname.startsWith('/sun-icon')
   // /source: full-screen debug view of the raw caster map the shadow shader
