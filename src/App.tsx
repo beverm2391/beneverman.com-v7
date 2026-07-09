@@ -17,6 +17,7 @@ import { backgroundModes, type BackgroundMode } from './HomeSunGradientConfig'
 import { HomeSunGradientLayer } from './HomeSunGradientLayer'
 import { getHomeIntroStyle } from './homeVisualConfig'
 import { siteVisualConfig } from './siteVisualConfig'
+import { activeSiteConfig } from './siteScene'
 import { SunIconLab } from './SunIconLab'
 import { getShadowFactor, SunWidget, sunWidgetVariants, type SunWidgetVariant } from './SunWidget'
 import { cycleTimeAtSunAngle, formatTimeOfDay, sunAngleAtCycleTime, sunCycleDurationSeconds } from './sunClock'
@@ -264,11 +265,13 @@ function getResponsiveVisualConfig(width: number, height: number) {
   return {
     appliedPreset,
     sizeClass,
-    background: siteVisualConfig.background,
+    // Base visuals come from the promoted lab scene (siteScene), if any;
+    // font/texture/type and the mobile responsive preset stay site-owned.
+    background: activeSiteConfig.background,
     font: siteVisualConfig.font,
-    shadowMapMode: siteVisualConfig.shadowMapMode,
+    shadowMapMode: activeSiteConfig.shadowMapMode,
     shadowSettings: {
-      ...siteVisualConfig.shadowSettings,
+      ...activeSiteConfig.shadowSettings,
       ...(responsivePreset?.shadowSettings ?? {}),
     },
     textureSettings: {
@@ -970,7 +973,9 @@ function App() {
   const [isDebugPanelCollapsed, setIsDebugPanelCollapsed] = useState(false)
   const shadowSourcePreview = useShadowSourcePreview()
   const [showShadowSource, setShowShadowSource] = useState(false)
-  const [sunWidget, setSunWidget] = useState<SunWidgetChoice>('gnomon')
+  const [sunWidget, setSunWidget] = useState<SunWidgetChoice>(
+    activeSiteConfig.showSunWidget ? activeSiteConfig.sunWidget : 'none',
+  )
   const [debugPanelTab, setDebugPanelTab] = useState<DebugPanelTab>('shadow')
   const [typeSettings, setTypeSettings] = useState<TypeSettings>({
     ...responsiveVisualConfig.typeSettings,
