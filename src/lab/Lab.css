@@ -278,9 +278,9 @@
 }
 
 .lab__mesh-btn.is-active {
-  background: var(--lab-accent);
-  border-color: var(--lab-accent);
-  color: #06131c;
+  background: rgb(255 255 255 / 0.9);
+  border-color: transparent;
+  color: #101012;
 }
 
 .lab__mesh-btn.is-active svg {
