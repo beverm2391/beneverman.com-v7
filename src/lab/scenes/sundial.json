@@ -4,6 +4,12 @@
   "sunAngle": 2.95,
   "layers": [
     {
+      "instanceId": "layer-sun-01",
+      "type": "sunWidget",
+      "enabled": true,
+      "config": { "variant": "gnomon", "showTime": false }
+    },
+    {
       "instanceId": "layer-shadow-01",
       "type": "shadow",
       "enabled": true,

@@ -34,7 +34,14 @@ function itemsFrom(options: { value: string; label: string }[]) {
   return Object.fromEntries(options.map((option) => [option.value, option.label]))
 }
 
-export function LabSidebar({ actions, scene }: { actions: LabActions; scene: Scene }) {
+export type SunAnim = {
+  on: boolean
+  rate: number
+  setOn: (on: boolean) => void
+  setRate: (rate: number) => void
+}
+
+export function LabSidebar({ actions, scene, sunAnim }: { actions: LabActions; scene: Scene; sunAnim: SunAnim }) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [addOpen, setAddOpen] = useState(false)
   const [dragFrom, setDragFrom] = useState<number | null>(null)
@@ -61,6 +68,13 @@ export function LabSidebar({ actions, scene }: { actions: LabActions; scene: Sce
     <aside className="lab__sidebar">
       <section className="lab__scene-params">
         <SliderRow label="Sun angle" max={TAU} min={0} onChange={actions.setSunAngle} step={0.01} value={scene.sunAngle} />
+        <label className="lab__control lab__control--row">
+          <span className="lab__control-label">Animate</span>
+          <Switch checked={sunAnim.on} onCheckedChange={sunAnim.setOn} />
+        </label>
+        {sunAnim.on ? (
+          <SliderRow label="Rate" max={2} min={0.05} onChange={sunAnim.setRate} step={0.05} value={sunAnim.rate} />
+        ) : null}
       </section>
 
       <section className="lab__layers">

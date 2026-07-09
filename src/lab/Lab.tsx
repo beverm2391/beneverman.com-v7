@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { createLayerInstance, createScene } from './layers'
 import { LayerStack } from './LayerStack'
@@ -24,6 +24,12 @@ export default function Lab() {
   const [scene, setScene] = useState<Scene | null>(null)
   const [dirty, setDirty] = useState(false)
   const [status, setStatus] = useState('')
+  // Sun-angle animation is a preview aid, not part of the saved scene: it sweeps
+  // a display angle without touching scene.sunAngle.
+  const [animateSun, setAnimateSun] = useState(false)
+  const [sunRate, setSunRate] = useState(0.6)
+  const [animatedAngle, setAnimatedAngle] = useState(0)
+  const angleRef = useRef(0)
 
   const selectInto = useCallback(
     (next: Scene) => {
@@ -76,6 +82,27 @@ export default function Lab() {
     document.documentElement.classList.add('dark')
     return () => document.documentElement.classList.remove('dark')
   }, [])
+
+  // Sweep the display sun angle while animation is on; reset to the scene's
+  // base angle when it's off.
+  const baseSunAngle = scene?.sunAngle ?? 0
+  useEffect(() => {
+    if (!animateSun) {
+      angleRef.current = baseSunAngle
+      return
+    }
+    let raf = 0
+    let last = performance.now()
+    const tick = (now: number) => {
+      const dt = (now - last) / 1000
+      last = now
+      angleRef.current = (angleRef.current + sunRate * dt) % (Math.PI * 2)
+      setAnimatedAngle(angleRef.current)
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [animateSun, sunRate, baseSunAngle])
 
   const edit = useCallback((next: (scene: Scene) => Scene) => {
     setScene((current) => (current ? next(current) : current))
@@ -142,13 +169,19 @@ export default function Lab() {
     return <div className="lab dark lab--loading">{status || 'loading lab…'}</div>
   }
 
+  const displayScene = animateSun ? { ...scene, sunAngle: animatedAngle } : scene
+
   return (
     <div className="lab dark">
-      <LabSidebar actions={actions} scene={scene} />
+      <LabSidebar
+        actions={actions}
+        scene={scene}
+        sunAnim={{ on: animateSun, rate: sunRate, setOn: setAnimateSun, setRate: setSunRate }}
+      />
       <div className="lab__stage">
         <LabTopBar actions={actions} dirty={dirty} savedScenes={savedScenes} scene={scene} status={status} />
         <div className="lab__viewer">
-          <LayerStack scene={scene} />
+          <LayerStack scene={displayScene} />
         </div>
       </div>
     </div>
