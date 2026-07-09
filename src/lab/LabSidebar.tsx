@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ChevronDown, Copy, GripVertical, Plus, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -50,6 +50,16 @@ export function LabSidebar({
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [addOpen, setAddOpen] = useState(false)
   const [dragFrom, setDragFrom] = useState<number | null>(null)
+  // A layer is only draggable while its grip handle is held, so dragging on a
+  // slider or select never starts a reorder.
+  const [armedId, setArmedId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!armedId) return
+    const disarm = () => setArmedId(null)
+    document.addEventListener('mouseup', disarm)
+    return () => document.removeEventListener('mouseup', disarm)
+  }, [armedId])
 
   const isSaved = savedScenes.some((s) => s.id === scene.id)
   const sceneOptions = [
@@ -139,9 +149,12 @@ export function LabSidebar({
           {scene.layers.map((layer, index) => (
             <li
               className={`lab__layer${dragFrom === index ? ' is-dragging' : ''}`}
-              draggable
+              draggable={armedId === layer.instanceId}
               key={layer.instanceId}
-              onDragEnd={() => setDragFrom(null)}
+              onDragEnd={() => {
+                setDragFrom(null)
+                setArmedId(null)
+              }}
               onDragOver={(event) => event.preventDefault()}
               onDragStart={() => setDragFrom(index)}
               onDrop={(event) => {
@@ -154,6 +167,7 @@ export function LabSidebar({
                 actions={actions}
                 collapsed={collapsed.has(layer.instanceId)}
                 layer={layer}
+                onGrip={() => setArmedId(layer.instanceId)}
                 onToggleCollapsed={() => toggleCollapsed(layer.instanceId)}
               />
             </li>
@@ -178,18 +192,22 @@ function LayerCard({
   actions,
   collapsed,
   layer,
+  onGrip,
   onToggleCollapsed,
 }: {
   actions: LabActions
   collapsed: boolean
   layer: LayerInstance
+  onGrip: () => void
   onToggleCollapsed: () => void
 }) {
   const def = getLayerDef(layer.type)
   return (
     <>
       <div className="lab__layer-head">
-        <GripVertical aria-hidden className="lab__grip" size={14} />
+        <button aria-label="Drag to reorder" className="lab__grip" onMouseDown={onGrip} type="button">
+          <GripVertical aria-hidden size={14} />
+        </button>
         <button
           className={`lab__layer-eye${layer.enabled ? ' is-on' : ''}`}
           onClick={() => actions.toggleLayer(layer.instanceId)}

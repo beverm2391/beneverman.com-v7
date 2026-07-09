@@ -196,8 +196,22 @@
 }
 
 .lab__grip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.1rem;
+  border: 0;
+  background: transparent;
   color: var(--lab-text-faint);
   cursor: grab;
+  touch-action: none;
+}
+
+.lab__grip:hover {
+  color: var(--lab-text-dim);
+}
+
+.lab__grip:active {
+  cursor: grabbing;
 }
 
 .lab__layer-eye {
@@ -277,6 +291,19 @@
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
+}
+
+/* Bigger, easier slider target: keep the track thin but expand the clickable
+   band (~26px) and the thumb hit area so it's not a pixel-hunt. */
+.lab__control [data-slot='slider-control'] {
+  align-items: center;
+  min-height: 1.65rem;
+  cursor: pointer;
+}
+
+.lab__control [data-slot='slider-thumb'] {
+  width: 1.1rem;
+  height: 1.1rem;
 }
 
 .lab__control-label {
