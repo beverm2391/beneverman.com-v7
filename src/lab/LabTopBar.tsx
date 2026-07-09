@@ -1,29 +1,51 @@
-import { Copy } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Copy, Pencil, Rocket } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogFooter, DialogHeader, DialogPanel, DialogPopup, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { Scene } from './scene'
 import type { LabActions } from './LabSidebar'
 
-// Global scene chrome, docked above the viewer: which scene is loaded and the
-// scene-level actions. Per-layer editing lives in the sidebar.
+// Global scene chrome, docked above the viewer: which scene is loaded, rename,
+// scene-level actions, and promotion to the live homepage.
 export function LabTopBar({
   actions,
   dirty,
+  promotedId,
   savedScenes,
   scene,
   status,
 }: {
   actions: LabActions
   dirty: boolean
+  promotedId: string | null
   savedScenes: Scene[]
   scene: Scene
   status: string
 }) {
+  const [renameOpen, setRenameOpen] = useState(false)
+  const [draft, setDraft] = useState(scene.name)
+
+  useEffect(() => {
+    if (renameOpen) setDraft(scene.name)
+  }, [renameOpen, scene.name])
+
   const isSaved = savedScenes.some((s) => s.id === scene.id)
+  const isPromoted = promotedId === scene.id && isSaved
   const options = [
     ...(isSaved ? [] : [{ value: scene.id, label: `${scene.name} (unsaved)` }]),
-    ...savedScenes.map((saved) => ({ value: saved.id, label: saved.name })),
+    ...savedScenes.map((saved) => ({
+      value: saved.id,
+      label: promotedId === saved.id ? `${saved.name} · live` : saved.name,
+    })),
   ]
+
+  const confirmRename = () => {
+    const name = draft.trim()
+    if (name) actions.renameScene(name)
+    setRenameOpen(false)
+  }
 
   return (
     <header className="lab__topbar">
@@ -44,12 +66,9 @@ export function LabTopBar({
             ))}
           </SelectPopup>
         </Select>
-        <input
-          className="lab__scene-name"
-          onChange={(event) => actions.renameScene(event.target.value)}
-          spellCheck={false}
-          value={scene.name}
-        />
+        <Button aria-label="Rename scene" onClick={() => setRenameOpen(true)} size="icon-sm" title="Rename scene" variant="ghost">
+          <Pencil />
+        </Button>
         {dirty ? <span className="lab__dirty" title="Unsaved changes" /> : null}
       </div>
 
@@ -70,7 +89,36 @@ export function LabTopBar({
         <Button onClick={actions.saveScene} size="sm" variant={dirty ? 'default' : 'outline'}>
           {dirty ? 'Save' : 'Saved'}
         </Button>
+        <Button onClick={actions.promote} size="sm" title="Promote to homepage" variant={isPromoted ? 'default' : 'outline'}>
+          <Rocket /> {isPromoted ? 'Promoted' : 'Promote'}
+        </Button>
       </div>
+
+      <Dialog onOpenChange={setRenameOpen} open={renameOpen}>
+        <DialogPopup>
+          <DialogHeader>
+            <DialogTitle>Rename scene</DialogTitle>
+          </DialogHeader>
+          <DialogPanel>
+            <Input
+              autoFocus
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') confirmRename()
+              }}
+              value={draft}
+            />
+          </DialogPanel>
+          <DialogFooter>
+            <Button onClick={() => setRenameOpen(false)} size="sm" variant="outline">
+              Cancel
+            </Button>
+            <Button onClick={confirmRename} size="sm">
+              Rename
+            </Button>
+          </DialogFooter>
+        </DialogPopup>
+      </Dialog>
     </header>
   )
 }

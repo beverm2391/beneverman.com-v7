@@ -13,7 +13,13 @@ import {
   type LayerType,
   type Scene,
 } from './scene'
-import { deleteScene as deleteSceneOnDisk, listScenes, saveScene as saveSceneToDisk } from './scenesClient'
+import {
+  deleteScene as deleteSceneOnDisk,
+  getPromoted,
+  listScenes,
+  saveScene as saveSceneToDisk,
+  setPromoted,
+} from './scenesClient'
 import { LabSidebar, type LabActions } from './LabSidebar'
 import { LabTopBar } from './LabTopBar'
 import './coss.css'
@@ -25,6 +31,7 @@ export default function Lab() {
   const [scene, setScene] = useState<Scene | null>(null)
   const [dirty, setDirty] = useState(false)
   const [status, setStatus] = useState('')
+  const [promotedId, setPromotedId] = useState<string | null>(null)
   // Sun-angle animation is a preview aid, not part of the saved scene: it sweeps
   // a display angle without touching scene.sunAngle.
   const [sunAnim, setSunAnim] = useState<AnimState>(defaultAnimState)
@@ -68,8 +75,10 @@ export default function Lab() {
           await saveSceneToDisk(starter)
           scenes = [starter]
         }
+        const promoted = await getPromoted().catch(() => null)
         if (cancelled) return
         setSavedScenes(scenes)
+        setPromotedId(promoted)
         const wanted = searchParams.get('scene')
         const initial = scenes.find((s) => s.id === wanted) ?? scenes[0]
         setScene(cloneScene(initial))
@@ -144,6 +153,20 @@ export default function Lab() {
         if (scene) navigator.clipboard?.writeText(JSON.stringify(scene, null, 2))
         setStatus('copied JSON')
       },
+      promote: async () => {
+        if (!scene) return
+        try {
+          // Homepage loads bundled scene JSON, so promoting must save first.
+          await saveSceneToDisk(scene)
+          setSavedScenes(await listScenes())
+          setDirty(false)
+          await setPromoted(scene.id)
+          setPromotedId(scene.id)
+          setStatus('promoted — commit src/lab/promoted.json + merge to deploy')
+        } catch (error) {
+          setStatus(`promote failed: ${String(error)}`)
+        }
+      },
       setSunAngle: (value) => edit((current) => ({ ...current, sunAngle: value })),
       addLayer: (type: LayerType) => edit((current) => withLayer(current, createLayerInstance(type))),
       removeLayer: (instanceId) => edit((current) => removeLayer(current, instanceId)),
@@ -185,7 +208,14 @@ export default function Lab() {
         sunAnim={sunAnim}
       />
       <div className="lab__stage">
-        <LabTopBar actions={actions} dirty={dirty} savedScenes={savedScenes} scene={scene} status={status} />
+        <LabTopBar
+          actions={actions}
+          dirty={dirty}
+          promotedId={promotedId}
+          savedScenes={savedScenes}
+          scene={scene}
+          status={status}
+        />
         <div className="lab__viewer">
           <LayerStack scene={displayScene} />
         </div>

@@ -11,6 +11,8 @@ const ROUTE = '/__lab/scenes'
 // Resolve against the Vite project root (cwd) so this holds whether the config
 // is loaded directly or bundled.
 const SCENES_DIR = path.resolve(process.cwd(), 'src/lab/scenes')
+// Which scene is promoted to the live homepage (read by src/siteScene.ts).
+const PROMOTED_FILE = path.resolve(process.cwd(), 'src/lab/promoted.json')
 
 async function readBody(req: Connect.IncomingMessage): Promise<string> {
   const chunks: Buffer[] = []
@@ -47,7 +49,7 @@ export function labScenes(): Plugin {
     name: 'lab-scenes',
     // Don't trigger HMR / full reloads when the lab writes scene files.
     handleHotUpdate(ctx) {
-      if (ctx.file.startsWith(SCENES_DIR)) return []
+      if (ctx.file.startsWith(SCENES_DIR) || ctx.file === PROMOTED_FILE) return []
     },
     configureServer(server: ViteDevServer) {
       server.middlewares.use(ROUTE, async (req, res) => {
@@ -75,6 +77,25 @@ export function labScenes(): Plugin {
             return sendJson(res, 200, { ok: true })
           }
 
+          return sendJson(res, 405, { error: 'method not allowed' })
+        } catch (error) {
+          return sendJson(res, 500, { error: String(error) })
+        }
+      })
+
+      // Promoted scene: which scene drives the live homepage.
+      server.middlewares.use('/__lab/promoted', async (req, res) => {
+        try {
+          if (req.method === 'GET') {
+            const raw = await fs.readFile(PROMOTED_FILE, 'utf8').catch(() => '{"id":null}')
+            return sendJson(res, 200, JSON.parse(raw))
+          }
+          if (req.method === 'PUT') {
+            const body = JSON.parse(await readBody(req))
+            const id = typeof body.id === 'string' ? body.id.replace(/[^a-z0-9-]/gi, '') : null
+            await fs.writeFile(PROMOTED_FILE, `${JSON.stringify({ id: id || null }, null, 2)}\n`, 'utf8')
+            return sendJson(res, 200, { ok: true, id: id || null })
+          }
           return sendJson(res, 405, { error: 'method not allowed' })
         } catch (error) {
           return sendJson(res, 500, { error: String(error) })

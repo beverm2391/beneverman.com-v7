@@ -15,6 +15,7 @@ export type LabActions = {
   deleteScene: () => void
   saveScene: () => void
   copyJson: () => void
+  promote: () => void
   setSunAngle: (value: number) => void
   addLayer: (type: LayerType) => void
   removeLayer: (instanceId: string) => void

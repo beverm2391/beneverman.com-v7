@@ -10,6 +10,7 @@
 // here; the first enabled one wins.
 
 import type { BackgroundMode } from './HomeSunGradientConfig'
+import promotedFile from './lab/promoted.json'
 import type { Scene } from './lab/scene'
 import { getSceneById } from './lab/sceneStore'
 import type { ShadowMapMode } from './shadowMapModes'
@@ -17,9 +18,10 @@ import { siteVisualConfig } from './siteVisualConfig'
 import type { SunWidgetVariant } from './SunWidget'
 import type { ShadowSettings } from './V2ShadowLayer'
 
-// Set to a saved scene id to drive the homepage from it, or null to use the
-// hand-written siteVisualConfig defaults.
-export const PROMOTED_SCENE_ID: string | null = 'sundial'
+// Which saved scene drives the homepage. Set from the lab's Promote button
+// (writes src/lab/promoted.json); commit that file + merge to deploy. null =
+// the hand-written siteVisualConfig defaults.
+export const PROMOTED_SCENE_ID: string | null = promotedFile.id || null
 
 // The shadow knobs the lab exposes; everything else stays at the site default.
 const SHADOW_KEYS = ['lightGlow', 'opacity', 'contrast', 'depthMix', 'density', 'scale'] as const
