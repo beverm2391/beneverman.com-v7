@@ -33,6 +33,9 @@ export function LabTopBar({
 
   const isSaved = savedScenes.some((s) => s.id === scene.id)
   const isPromoted = promotedId === scene.id && isSaved
+  // Nothing to promote when this exact scene is already live and unedited;
+  // editing it (dirty) re-enables promote so you can push the new version.
+  const promoteDisabled = isPromoted && !dirty
   const options = [
     ...(isSaved ? [] : [{ value: scene.id, label: `${scene.name} (unsaved)` }]),
     ...savedScenes.map((saved) => ({
@@ -89,8 +92,14 @@ export function LabTopBar({
         <Button onClick={actions.saveScene} size="sm" variant={dirty ? 'default' : 'outline'}>
           {dirty ? 'Save' : 'Saved'}
         </Button>
-        <Button onClick={actions.promote} size="sm" title="Promote to homepage" variant={isPromoted ? 'default' : 'outline'}>
-          <Rocket /> {isPromoted ? 'Promoted' : 'Promote'}
+        <Button
+          disabled={promoteDisabled}
+          onClick={actions.promote}
+          size="sm"
+          title={promoteDisabled ? 'Already the live scene' : 'Promote to homepage'}
+          variant={isPromoted ? 'default' : 'outline'}
+        >
+          <Rocket /> {promoteDisabled ? 'Promoted' : 'Promote'}
         </Button>
       </div>
 

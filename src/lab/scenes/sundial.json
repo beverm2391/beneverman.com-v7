@@ -7,7 +7,10 @@
       "instanceId": "layer-sun-01",
       "type": "sunWidget",
       "enabled": true,
-      "config": { "variant": "gnomon", "showTime": false }
+      "config": {
+        "variant": "gnomon",
+        "showTime": false
+      }
     },
     {
       "instanceId": "layer-shadow-01",
@@ -27,13 +30,17 @@
       "instanceId": "layer-text-01",
       "type": "text",
       "enabled": true,
-      "config": { "opacity": 1 }
+      "config": {
+        "opacity": 1
+      }
     },
     {
       "instanceId": "layer-gradient-01",
       "type": "sunGradient",
       "enabled": true,
-      "config": { "mode": "paper" }
+      "config": {
+        "mode": "paper"
+      }
     }
   ]
 }
