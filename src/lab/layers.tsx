@@ -78,6 +78,7 @@ const shadow: LayerDef = {
   label: 'Shadow',
   defaultConfig: {
     preset: 'sundial',
+    inspect: false,
     lightGlow: 0.6,
     opacity: 0.19,
     contrast: 0.9,
@@ -92,6 +93,9 @@ const shadow: LayerDef = {
       label: 'Preset',
       options: shadowMapModes.map((mode) => ({ value: mode, label: mode })),
     },
+    // Mesh inspector: show the raw caster map (the geometry casting the shadow)
+    // instead of the shaded result — r=height, g=caster flag, b=strength.
+    { kind: 'switch', key: 'inspect', label: 'Mesh inspector' },
     ...SHADOW_KNOBS.map((knob) => ({ kind: 'slider' as const, ...knob })),
   ],
   Render: ({ config, sunAngle }) => {
@@ -107,6 +111,7 @@ const shadow: LayerDef = {
         opacityScale={1}
         settings={settings}
         shadowTint={NEUTRAL_TINT}
+        showSource={config.inspect === true}
         sunAngle={sunAngle}
       />
     )
