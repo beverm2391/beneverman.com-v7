@@ -120,6 +120,12 @@
   border-bottom: 1px solid var(--lab-line);
 }
 
+.lab__anim-param {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
 /* ---- layers ----------------------------------------------------------- */
 
 .lab__layers {

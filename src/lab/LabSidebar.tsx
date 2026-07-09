@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react'
 import { ChevronDown, GripVertical, Plus, Trash2 } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
+import { AnimatedParam, SliderRow, type AnimState } from './animatedParam'
 import { getLayerDef, LAYER_TYPES, type Control } from './layers'
 import type { LayerConfig, LayerInstance, LayerType, Scene } from './scene'
 
@@ -26,22 +25,21 @@ export type LabActions = {
 
 const TAU = Math.PI * 2
 
-function toNumber(value: number | readonly number[], fallback: number) {
-  return typeof value === 'number' ? value : Number(value[0] ?? fallback)
-}
-
 function itemsFrom(options: { value: string; label: string }[]) {
   return Object.fromEntries(options.map((option) => [option.value, option.label]))
 }
 
-export type SunAnim = {
-  on: boolean
-  rate: number
-  setOn: (on: boolean) => void
-  setRate: (rate: number) => void
-}
-
-export function LabSidebar({ actions, scene, sunAnim }: { actions: LabActions; scene: Scene; sunAnim: SunAnim }) {
+export function LabSidebar({
+  actions,
+  scene,
+  sunAnim,
+  onSunAnim,
+}: {
+  actions: LabActions
+  scene: Scene
+  sunAnim: AnimState
+  onSunAnim: (next: AnimState) => void
+}) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [addOpen, setAddOpen] = useState(false)
   const [dragFrom, setDragFrom] = useState<number | null>(null)
@@ -67,14 +65,16 @@ export function LabSidebar({ actions, scene, sunAnim }: { actions: LabActions; s
   return (
     <aside className="lab__sidebar">
       <section className="lab__scene-params">
-        <SliderRow label="Sun angle" max={TAU} min={0} onChange={actions.setSunAngle} step={0.01} value={scene.sunAngle} />
-        <label className="lab__control lab__control--row">
-          <span className="lab__control-label">Animate</span>
-          <Switch checked={sunAnim.on} onCheckedChange={sunAnim.setOn} />
-        </label>
-        {sunAnim.on ? (
-          <SliderRow label="Rate ×" max={8} min={0.1} onChange={sunAnim.setRate} step={0.1} value={sunAnim.rate} />
-        ) : null}
+        <AnimatedParam
+          anim={sunAnim}
+          label="Sun angle"
+          max={TAU}
+          min={0}
+          onAnimChange={onSunAnim}
+          onChange={actions.setSunAngle}
+          step={0.01}
+          value={scene.sunAngle}
+        />
       </section>
 
       <section className="lab__layers">
@@ -240,30 +240,3 @@ function LayerControl({
   )
 }
 
-function SliderRow({
-  label,
-  max,
-  min,
-  onChange,
-  step,
-  value,
-}: {
-  label: string
-  max: number
-  min: number
-  onChange: (value: number) => void
-  step: number
-  value: number
-}) {
-  return (
-    <label className="lab__control">
-      <span className="lab__control-label">
-        <span>{label}</span>
-        <Badge size="sm" variant="outline">
-          {value.toFixed(2)}
-        </Badge>
-      </span>
-      <Slider max={max} min={min} onValueChange={(next) => onChange(toNumber(next, value))} step={step} value={[value]} />
-    </label>
-  )
-}

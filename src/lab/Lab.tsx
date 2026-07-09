@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { defaultAnimState, sunAngleSweep, useSweep, type AnimState } from './animatedParam'
 import { createLayerInstance, createScene } from './layers'
 import { LayerStack } from './LayerStack'
 import {
@@ -12,7 +13,6 @@ import {
   type LayerType,
   type Scene,
 } from './scene'
-import { sunCycleDurationSeconds } from '../sunClock'
 import { deleteScene as deleteSceneOnDisk, listScenes, saveScene as saveSceneToDisk } from './scenesClient'
 import { LabSidebar, type LabActions } from './LabSidebar'
 import { LabTopBar } from './LabTopBar'
@@ -27,11 +27,7 @@ export default function Lab() {
   const [status, setStatus] = useState('')
   // Sun-angle animation is a preview aid, not part of the saved scene: it sweeps
   // a display angle without touching scene.sunAngle.
-  const [animateSun, setAnimateSun] = useState(false)
-  // Rate is a multiplier on the real site cycle: 1 = actual homepage speed.
-  const [sunRate, setSunRate] = useState(1)
-  const [animatedAngle, setAnimatedAngle] = useState(0)
-  const angleRef = useRef(0)
+  const [sunAnim, setSunAnim] = useState<AnimState>(defaultAnimState)
 
   const selectInto = useCallback(
     (next: Scene) => {
@@ -85,30 +81,9 @@ export default function Lab() {
     return () => document.documentElement.classList.remove('dark')
   }, [])
 
-  // Sweep the display sun angle while animation is on; reset to the scene's
-  // base angle when it's off.
-  const baseSunAngle = scene?.sunAngle ?? 0
-  useEffect(() => {
-    if (!animateSun) {
-      angleRef.current = baseSunAngle
-      return
-    }
-    let raf = 0
-    let last = performance.now()
-    const tau = Math.PI * 2
-    // Match the homepage: it mirrors the cycle (PI - angle), so the effective
-    // sun angle DECREASES over time. rate 1 = one cycle per sunCycleDuration.
-    const speed = sunRate * (tau / sunCycleDurationSeconds)
-    const tick = (now: number) => {
-      const dt = (now - last) / 1000
-      last = now
-      angleRef.current = (((angleRef.current - speed * dt) % tau) + tau) % tau
-      setAnimatedAngle(angleRef.current)
-      raf = requestAnimationFrame(tick)
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [animateSun, sunRate, baseSunAngle])
+  // Preview-only sun-angle sweep (matches the homepage cycle); never touches
+  // the saved scene.
+  const displaySunAngle = useSweep(sunAnim.on, sunAnim.rate, scene?.sunAngle ?? 0, sunAngleSweep)
 
   const edit = useCallback((next: (scene: Scene) => Scene) => {
     setScene((current) => (current ? next(current) : current))
@@ -175,15 +150,11 @@ export default function Lab() {
     return <div className="lab dark lab--loading">{status || 'loading lab…'}</div>
   }
 
-  const displayScene = animateSun ? { ...scene, sunAngle: animatedAngle } : scene
+  const displayScene = sunAnim.on ? { ...scene, sunAngle: displaySunAngle } : scene
 
   return (
     <div className="lab dark">
-      <LabSidebar
-        actions={actions}
-        scene={scene}
-        sunAnim={{ on: animateSun, rate: sunRate, setOn: setAnimateSun, setRate: setSunRate }}
-      />
+      <LabSidebar actions={actions} onSunAnim={setSunAnim} scene={scene} sunAnim={sunAnim} />
       <div className="lab__stage">
         <LabTopBar actions={actions} dirty={dirty} savedScenes={savedScenes} scene={scene} status={status} />
         <div className="lab__viewer">
