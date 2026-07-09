@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ChevronDown, GripVertical, Plus, Trash2 } from 'lucide-react'
+import { Box, ChevronDown, GripVertical, Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
@@ -151,6 +151,7 @@ function LayerCard({
   onToggleCollapsed: () => void
 }) {
   const def = getLayerDef(layer.type)
+  const inspecting = layer.config.inspect === true
   return (
     <>
       <div className="lab__layer-head">
@@ -167,6 +168,18 @@ function LayerCard({
           <ChevronDown aria-hidden className={collapsed ? 'lab__caret is-collapsed' : 'lab__caret'} size={13} />
           {def.label}
         </button>
+        {def.inspectable ? (
+          <Button
+            aria-label="Mesh inspector"
+            aria-pressed={inspecting}
+            onClick={() => actions.setLayerConfig(layer.instanceId, 'inspect', !inspecting)}
+            size="icon-xs"
+            title="Mesh inspector"
+            variant={inspecting ? 'secondary' : 'ghost'}
+          >
+            <Box />
+          </Button>
+        ) : null}
         <Button aria-label="Remove layer" onClick={() => actions.removeLayer(layer.instanceId)} size="icon-xs" variant="ghost">
           <Trash2 />
         </Button>

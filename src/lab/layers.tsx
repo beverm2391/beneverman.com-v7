@@ -26,6 +26,9 @@ export type LayerDef = {
   label: string
   defaultConfig: LayerConfig
   controls: Control[]
+  // Layers that can render a raw-geometry inspector get a mesh button in their
+  // header; it toggles the boolean `inspect` config key.
+  inspectable?: boolean
   Render: (props: { config: LayerConfig; sunAngle: number }) => React.ReactNode
 }
 
@@ -76,6 +79,9 @@ const text: LayerDef = {
 const shadow: LayerDef = {
   type: 'shadow',
   label: 'Shadow',
+  // Mesh inspector (header button) toggles this: show the raw caster map (the
+  // geometry casting the shadow) instead of the shaded result.
+  inspectable: true,
   defaultConfig: {
     preset: 'sundial',
     inspect: false,
@@ -93,9 +99,6 @@ const shadow: LayerDef = {
       label: 'Preset',
       options: shadowMapModes.map((mode) => ({ value: mode, label: mode })),
     },
-    // Mesh inspector: show the raw caster map (the geometry casting the shadow)
-    // instead of the shaded result — r=height, g=caster flag, b=strength.
-    { kind: 'switch', key: 'inspect', label: 'Mesh inspector' },
     ...SHADOW_KNOBS.map((knob) => ({ kind: 'slider' as const, ...knob })),
   ],
   Render: ({ config, sunAngle }) => {
