@@ -9,8 +9,6 @@
       "enabled": true,
       "config": {
         "preset": "sundial",
-        "lightRays": 0.5,
-        "rayDiffusion": 0.3,
         "lightGlow": 0.6,
         "opacity": 0.19,
         "contrast": 0.9,

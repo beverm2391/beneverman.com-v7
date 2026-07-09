@@ -35,8 +35,6 @@ const num = (config: LayerConfig, key: string, fallback: number) =>
 // The shadow layer exposes a curated subset of ShadowSettings; everything else
 // falls back to the production preset in siteVisualConfig.
 const SHADOW_KNOBS = [
-  { key: 'lightRays', label: 'Light rays', min: 0, max: 1, step: 0.01 },
-  { key: 'rayDiffusion', label: 'Ray diffusion', min: 0, max: 1, step: 0.01 },
   { key: 'lightGlow', label: 'Light glow', min: 0, max: 1, step: 0.01 },
   { key: 'opacity', label: 'Shadow opacity', min: 0, max: 0.6, step: 0.01 },
   { key: 'contrast', label: 'Contrast', min: 0, max: 1.5, step: 0.01 },
@@ -80,8 +78,6 @@ const shadow: LayerDef = {
   label: 'Shadow',
   defaultConfig: {
     preset: 'sundial',
-    lightRays: 0.5,
-    rayDiffusion: 0.3,
     lightGlow: 0.6,
     opacity: 0.19,
     contrast: 0.9,
