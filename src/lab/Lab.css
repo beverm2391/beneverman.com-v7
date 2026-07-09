@@ -339,6 +339,15 @@
   color: #171717;
 }
 
+/* Sun indicator overlay — mirrors the homepage placement (top-left, ~3.1rem). */
+.lab-sun-widget {
+  position: absolute;
+  top: clamp(1rem, 2.5vw, 2rem);
+  left: clamp(1.25rem, 3vw, 2.5rem);
+  width: 3.1rem;
+  color: #171717;
+}
+
 @media (max-width: 900px) {
   .lab {
     grid-template-columns: minmax(0, 1fr);

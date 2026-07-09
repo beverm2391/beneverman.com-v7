@@ -9,6 +9,7 @@ import { backgroundModes } from '../HomeSunGradientConfig'
 import { getHomeIntroStyle } from '../homeVisualConfig'
 import { shadowMapModes, type ShadowMapMode } from '../shadowMapModes'
 import { siteVisualConfig } from '../siteVisualConfig'
+import { SunWidget, sunWidgetVariants, type SunWidgetVariant } from '../SunWidget'
 import V2ShadowLayer, { type ShadowSettings } from '../V2ShadowLayer'
 import { newInstanceId, slugify, type LayerConfig, type LayerInstance, type LayerType, type Scene } from './scene'
 
@@ -114,10 +115,35 @@ const shadow: LayerDef = {
   },
 }
 
-export const LAYER_REGISTRY: Record<LayerType, LayerDef> = { sunGradient, text, shadow }
+const sunWidget: LayerDef = {
+  type: 'sunWidget',
+  label: 'Sun indicator',
+  defaultConfig: { variant: 'gnomon' },
+  controls: [
+    {
+      kind: 'select',
+      key: 'variant',
+      label: 'Style',
+      options: sunWidgetVariants.map((variant) => ({ value: variant, label: variant })),
+    },
+  ],
+  Render: ({ config, sunAngle }) => {
+    const variant = (sunWidgetVariants as readonly string[]).includes(config.variant as string)
+      ? (config.variant as SunWidgetVariant)
+      : 'gnomon'
+    return (
+      <div aria-hidden className="lab-sun-widget">
+        <SunWidget angle={sunAngle} variant={variant} />
+      </div>
+    )
+  },
+}
 
-// Order shown in the "add layer" picker.
-export const LAYER_TYPES: LayerType[] = ['shadow', 'text', 'sunGradient']
+export const LAYER_REGISTRY: Record<LayerType, LayerDef> = { sunGradient, text, shadow, sunWidget }
+
+// Order shown in the "add layer" picker; also the default new-scene stack
+// (top of the list = front-most).
+export const LAYER_TYPES: LayerType[] = ['sunWidget', 'shadow', 'text', 'sunGradient']
 
 export function getLayerDef(type: LayerType): LayerDef {
   return LAYER_REGISTRY[type]

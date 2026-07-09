@@ -1,7 +1,7 @@
 // Pure scene/layer model — no React, no THREE, so the homepage can import
 // scene JSON and these helpers cheaply when promoting a lab scene to prod.
 
-export type LayerType = 'sunGradient' | 'text' | 'shadow'
+export type LayerType = 'sunGradient' | 'text' | 'shadow' | 'sunWidget'
 
 // Layer configs are flat bags of primitives so scenes serialize straight to
 // JSON on disk. Each layer type documents its own keys via the registry.
