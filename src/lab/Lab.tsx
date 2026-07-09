@@ -28,6 +28,17 @@ export default function Lab() {
   // Sun-angle animation is a preview aid, not part of the saved scene: it sweeps
   // a display angle without touching scene.sunAngle.
   const [sunAnim, setSunAnim] = useState<AnimState>(defaultAnimState)
+  // Transient mesh-inspector view state, keyed by layer instance id. Not part
+  // of the saved scene, so toggling it never dirties.
+  const [inspectedIds, setInspectedIds] = useState<Set<string>>(new Set())
+  const toggleInspect = useCallback((instanceId: string) => {
+    setInspectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(instanceId)) next.delete(instanceId)
+      else next.add(instanceId)
+      return next
+    })
+  }, [])
 
   const selectInto = useCallback(
     (next: Scene) => {
@@ -150,11 +161,26 @@ export default function Lab() {
     return <div className="lab dark lab--loading">{status || 'loading lab…'}</div>
   }
 
-  const displayScene = sunAnim.on ? { ...scene, sunAngle: displaySunAngle } : scene
+  let displayScene = sunAnim.on ? { ...scene, sunAngle: displaySunAngle } : scene
+  if (inspectedIds.size > 0) {
+    displayScene = {
+      ...displayScene,
+      layers: displayScene.layers.map((layer) =>
+        inspectedIds.has(layer.instanceId) ? { ...layer, config: { ...layer.config, inspect: true } } : layer,
+      ),
+    }
+  }
 
   return (
     <div className="lab dark">
-      <LabSidebar actions={actions} onSunAnim={setSunAnim} scene={scene} sunAnim={sunAnim} />
+      <LabSidebar
+        actions={actions}
+        inspectedIds={inspectedIds}
+        onSunAnim={setSunAnim}
+        onToggleInspect={toggleInspect}
+        scene={scene}
+        sunAnim={sunAnim}
+      />
       <div className="lab__stage">
         <LabTopBar actions={actions} dirty={dirty} savedScenes={savedScenes} scene={scene} status={status} />
         <div className="lab__viewer">

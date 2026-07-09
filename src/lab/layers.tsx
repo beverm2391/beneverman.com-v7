@@ -79,12 +79,12 @@ const text: LayerDef = {
 const shadow: LayerDef = {
   type: 'shadow',
   label: 'Shadow',
-  // Mesh inspector (header button) toggles this: show the raw caster map (the
-  // geometry casting the shadow) instead of the shaded result.
+  // Mesh inspector (header button) shows the raw caster map instead of the
+  // shaded result. It's a transient view toggle (lab state), not saved config;
+  // the Render still reads a `config.inspect` flag injected at render time.
   inspectable: true,
   defaultConfig: {
     preset: 'sundial',
-    inspect: false,
     lightGlow: 0.6,
     opacity: 0.19,
     contrast: 0.9,

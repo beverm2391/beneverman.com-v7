@@ -34,11 +34,15 @@ export function LabSidebar({
   scene,
   sunAnim,
   onSunAnim,
+  inspectedIds,
+  onToggleInspect,
 }: {
   actions: LabActions
   scene: Scene
   sunAnim: AnimState
   onSunAnim: (next: AnimState) => void
+  inspectedIds: Set<string>
+  onToggleInspect: (instanceId: string) => void
 }) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [addOpen, setAddOpen] = useState(false)
@@ -125,9 +129,11 @@ export function LabSidebar({
               <LayerCard
                 actions={actions}
                 collapsed={collapsed.has(layer.instanceId)}
+                inspecting={inspectedIds.has(layer.instanceId)}
                 layer={layer}
                 onGrip={() => setArmedId(layer.instanceId)}
                 onToggleCollapsed={() => toggleCollapsed(layer.instanceId)}
+                onToggleInspect={() => onToggleInspect(layer.instanceId)}
               />
             </li>
           ))}
@@ -140,18 +146,21 @@ export function LabSidebar({
 function LayerCard({
   actions,
   collapsed,
+  inspecting,
   layer,
   onGrip,
   onToggleCollapsed,
+  onToggleInspect,
 }: {
   actions: LabActions
   collapsed: boolean
+  inspecting: boolean
   layer: LayerInstance
   onGrip: () => void
   onToggleCollapsed: () => void
+  onToggleInspect: () => void
 }) {
   const def = getLayerDef(layer.type)
-  const inspecting = layer.config.inspect === true
   return (
     <>
       <div className="lab__layer-head">
@@ -172,7 +181,7 @@ function LayerCard({
           <Button
             aria-label="Mesh inspector"
             aria-pressed={inspecting}
-            onClick={() => actions.setLayerConfig(layer.instanceId, 'inspect', !inspecting)}
+            onClick={onToggleInspect}
             size="icon-xs"
             title="Mesh inspector"
             variant={inspecting ? 'secondary' : 'ghost'}
