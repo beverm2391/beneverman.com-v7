@@ -19,7 +19,7 @@ import type { ShadowSettings } from './V2ShadowLayer'
 
 // Set to a saved scene id to drive the homepage from it, or null to use the
 // hand-written siteVisualConfig defaults.
-export const PROMOTED_SCENE_ID: string | null = null
+export const PROMOTED_SCENE_ID: string | null = 'sundial'
 
 // The shadow knobs the lab exposes; everything else stays at the site default.
 const SHADOW_KEYS = ['lightGlow', 'opacity', 'contrast', 'depthMix', 'density', 'scale'] as const
