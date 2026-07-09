@@ -14,6 +14,7 @@ import {
 } from './scene'
 import { deleteScene as deleteSceneOnDisk, listScenes, saveScene as saveSceneToDisk } from './scenesClient'
 import { LabSidebar, type LabActions } from './LabSidebar'
+import './coss.css'
 import './Lab.css'
 
 export default function Lab() {
@@ -65,6 +66,14 @@ export default function Lab() {
     }
     // Run once — the scene deep-link is read on first load only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Coss components (selects, menus) portal their popups to <body>, outside the
+  // .lab.dark wrapper. Put `dark` on the document root while the lab is mounted
+  // so those portaled popups pick up the dark tokens too.
+  useEffect(() => {
+    document.documentElement.classList.add('dark')
+    return () => document.documentElement.classList.remove('dark')
   }, [])
 
   const edit = useCallback((next: (scene: Scene) => Scene) => {
@@ -129,11 +138,11 @@ export default function Lab() {
   )
 
   if (!scene) {
-    return <div className="lab lab--loading">{status || 'loading lab…'}</div>
+    return <div className="lab dark lab--loading">{status || 'loading lab…'}</div>
   }
 
   return (
-    <div className="lab">
+    <div className="lab dark">
       <LabSidebar actions={actions} dirty={dirty} savedScenes={savedScenes} scene={scene} status={status} />
       <div className="lab__stage">
         <div className="lab__viewer">

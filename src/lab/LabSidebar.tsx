@@ -1,7 +1,10 @@
 import { useState } from 'react'
 import { ChevronDown, Copy, GripVertical, Plus, Trash2 } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Slider } from '@/components/ui/slider'
 import { getLayerDef, LAYER_TYPES, type Control } from './layers'
-import { LabSelect } from './Select'
 import type { LayerConfig, LayerInstance, LayerType, Scene } from './scene'
 
 export type LabActions = {
@@ -22,6 +25,14 @@ export type LabActions = {
 
 const TAU = Math.PI * 2
 
+function toNumber(value: number | readonly number[], fallback: number) {
+  return typeof value === 'number' ? value : Number(value[0] ?? fallback)
+}
+
+function itemsFrom(options: { value: string; label: string }[]) {
+  return Object.fromEntries(options.map((option) => [option.value, option.label]))
+}
+
 export function LabSidebar({
   actions,
   dirty,
@@ -40,6 +51,10 @@ export function LabSidebar({
   const [dragFrom, setDragFrom] = useState<number | null>(null)
 
   const isSaved = savedScenes.some((s) => s.id === scene.id)
+  const sceneOptions = [
+    ...(isSaved ? [] : [{ value: scene.id, label: `${scene.name} (unsaved)` }]),
+    ...savedScenes.map((saved) => ({ value: saved.id, label: saved.name })),
+  ]
 
   const toggleCollapsed = (id: string) =>
     setCollapsed((prev) => {
@@ -53,14 +68,18 @@ export function LabSidebar({
     <aside className="lab__sidebar">
       <header className="lab__scenebar">
         <div className="lab__scene-select-row">
-          <LabSelect
-            onChange={actions.selectScene}
-            options={[
-              ...(isSaved ? [] : [{ value: scene.id, label: `${scene.name} (unsaved)` }]),
-              ...savedScenes.map((saved) => ({ value: saved.id, label: saved.name })),
-            ]}
-            value={scene.id}
-          />
+          <Select items={itemsFrom(sceneOptions)} onValueChange={(value) => actions.selectScene(String(value))} value={scene.id}>
+            <SelectTrigger size="sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectPopup>
+              {sceneOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectPopup>
+          </Select>
           {dirty ? <span className="lab__dirty" title="Unsaved changes" /> : null}
         </div>
 
@@ -72,36 +91,29 @@ export function LabSidebar({
         />
 
         <div className="lab__scene-actions">
-          <button className="lab__btn" onClick={actions.newScene} type="button">
+          <Button onClick={actions.newScene} size="sm" variant="outline">
             New
-          </button>
-          <button className="lab__btn" onClick={actions.duplicateScene} type="button">
+          </Button>
+          <Button onClick={actions.duplicateScene} size="sm" variant="outline">
             Duplicate
-          </button>
-          <button className="lab__btn lab__btn--danger" onClick={actions.deleteScene} type="button">
+          </Button>
+          <Button onClick={actions.deleteScene} size="sm" variant="destructive-outline">
             Delete
-          </button>
+          </Button>
         </div>
       </header>
 
       <section className="lab__scene-params">
-        <SliderRow
-          label="Sun angle"
-          max={TAU}
-          min={0}
-          onChange={actions.setSunAngle}
-          step={0.01}
-          value={scene.sunAngle}
-        />
+        <SliderRow label="Sun angle" max={TAU} min={0} onChange={actions.setSunAngle} step={0.01} value={scene.sunAngle} />
       </section>
 
       <section className="lab__layers">
         <div className="lab__layers-head">
           <span className="lab__section-title">Layers</span>
           <div className="lab__add">
-            <button className="lab__btn lab__btn--ghost" onClick={() => setAddOpen((v) => !v)} type="button">
-              <Plus aria-hidden size={13} /> Add layer
-            </button>
+            <Button onClick={() => setAddOpen((v) => !v)} size="xs" variant="ghost">
+              <Plus /> Add layer
+            </Button>
             {addOpen ? (
               <div className="lab__add-menu" onMouseLeave={() => setAddOpen(false)}>
                 {LAYER_TYPES.map((type) => (
@@ -149,16 +161,12 @@ export function LabSidebar({
       </section>
 
       <footer className="lab__sidebar-foot">
-        <button
-          className={`lab__btn lab__btn--primary${dirty ? ' is-dirty' : ''}`}
-          onClick={actions.saveScene}
-          type="button"
-        >
-          {dirty ? 'Save •' : 'Saved'}
-        </button>
-        <button className="lab__btn" onClick={actions.copyJson} type="button">
-          <Copy aria-hidden size={13} /> JSON
-        </button>
+        <Button onClick={actions.saveScene} size="sm" variant={dirty ? 'default' : 'outline'}>
+          {dirty ? 'Save' : 'Saved'}
+        </Button>
+        <Button onClick={actions.copyJson} size="sm" variant="outline">
+          <Copy /> JSON
+        </Button>
         <span className="lab__status">{status}</span>
       </footer>
     </aside>
@@ -191,14 +199,9 @@ function LayerCard({
           <ChevronDown aria-hidden className={collapsed ? 'lab__caret is-collapsed' : 'lab__caret'} size={13} />
           {def.label}
         </button>
-        <button
-          className="lab__layer-remove"
-          onClick={() => actions.removeLayer(layer.instanceId)}
-          title="Remove layer"
-          type="button"
-        >
-          <Trash2 aria-hidden size={13} />
-        </button>
+        <Button aria-label="Remove layer" onClick={() => actions.removeLayer(layer.instanceId)} size="icon-xs" variant="ghost">
+          <Trash2 />
+        </Button>
       </div>
 
       {!collapsed ? (
@@ -231,7 +234,18 @@ function LayerControl({
     return (
       <div className="lab__control">
         <span className="lab__control-label">{control.label}</span>
-        <LabSelect onChange={onChange} options={control.options} value={value} />
+        <Select items={itemsFrom(control.options)} onValueChange={(next) => onChange(String(next))} value={value}>
+          <SelectTrigger size="sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectPopup>
+            {control.options.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectPopup>
+        </Select>
       </div>
     )
   }
@@ -268,17 +282,11 @@ function SliderRow({
     <label className="lab__control">
       <span className="lab__control-label">
         <span>{label}</span>
-        <span className="lab__control-value">{value.toFixed(2)}</span>
+        <Badge size="sm" variant="outline">
+          {value.toFixed(2)}
+        </Badge>
       </span>
-      <input
-        className="lab__range"
-        max={max}
-        min={min}
-        onChange={(event) => onChange(Number(event.target.value))}
-        step={step}
-        type="range"
-        value={value}
-      />
+      <Slider max={max} min={min} onValueChange={(next) => onChange(toNumber(next, value))} step={step} value={[value]} />
     </label>
   )
 }

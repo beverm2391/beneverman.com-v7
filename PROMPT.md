@@ -53,8 +53,13 @@ build, tune, and save. Not to be confused with `shadowMapModes` — a shadow
 - **Promote a scene to the homepage in code** via `sceneStore.ts`:
   `getSceneById('<id>')` returns the bundled JSON; render it through
   `LayerStack`. No UI exposure.
-- The lab is self-contained CSS (`Lab.css`, native controls + `lucide-react`
-  icons). The old `components/ui` design system and `coss.css` were removed.
+- **UI always starts from Coss** (`src/components/ui/*`, styled with
+  `src/lab/coss.css`). Do not hand-roll primitives (button, select, slider,
+  badge, etc.) — reach for the Coss component first. `Lab.css` is layout-only.
+- **Dark mode gotcha**: the lab root has `.dark`, and `Lab.tsx` also adds `dark`
+  to `document.documentElement` on mount. Coss popups (select/menu) portal to
+  `<body>`, outside the lab root, so without the document-root class they render
+  in the light theme. Keep that effect if you touch lab mounting.
 - `docs/tasks/` — numbered instruction files: Claude (staff role) writes
   specs, Codex executes them. Status line at the top of each file.
 
