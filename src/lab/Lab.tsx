@@ -44,6 +44,7 @@ export default function Lab() {
     (next: Scene) => {
       setScene(cloneScene(next))
       setDirty(false)
+      setInspectedIds(new Set())
       setSearchParams(
         (prev) => {
           const params = new URLSearchParams(prev)
@@ -162,12 +163,14 @@ export default function Lab() {
   }
 
   let displayScene = sunAnim.on ? { ...scene, sunAngle: displaySunAngle } : scene
+  // Mesh inspector is a debug view: isolate it, rendering only the inspected
+  // layer(s) with inspect forced on, so no other overlays are in the way.
   if (inspectedIds.size > 0) {
     displayScene = {
       ...displayScene,
-      layers: displayScene.layers.map((layer) =>
-        inspectedIds.has(layer.instanceId) ? { ...layer, config: { ...layer.config, inspect: true } } : layer,
-      ),
+      layers: displayScene.layers
+        .filter((layer) => inspectedIds.has(layer.instanceId))
+        .map((layer) => ({ ...layer, config: { ...layer.config, inspect: true } })),
     }
   }
 
