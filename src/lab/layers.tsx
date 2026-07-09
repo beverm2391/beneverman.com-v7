@@ -10,6 +10,7 @@ import { getHomeIntroStyle } from '../homeVisualConfig'
 import { shadowMapModes, type ShadowMapMode } from '../shadowMapModes'
 import { siteVisualConfig } from '../siteVisualConfig'
 import { SunWidget, sunWidgetVariants, type SunWidgetVariant } from '../SunWidget'
+import { cycleTimeAtSunAngle, formatTimeOfDay, sunCycleDurationSeconds } from '../sunClock'
 import V2ShadowLayer, { type ShadowSettings } from '../V2ShadowLayer'
 import { newInstanceId, slugify, type LayerConfig, type LayerInstance, type LayerType, type Scene } from './scene'
 
@@ -18,6 +19,7 @@ const NEUTRAL_TINT = [0.08, 0.09, 0.12] as const
 export type Control =
   | { kind: 'slider'; key: string; label: string; min: number; max: number; step: number }
   | { kind: 'select'; key: string; label: string; options: { value: string; label: string }[] }
+  | { kind: 'switch'; key: string; label: string }
 
 export type LayerDef = {
   type: LayerType
@@ -118,7 +120,7 @@ const shadow: LayerDef = {
 const sunWidget: LayerDef = {
   type: 'sunWidget',
   label: 'Sun indicator',
-  defaultConfig: { variant: 'gnomon' },
+  defaultConfig: { variant: 'gnomon', showTime: false },
   controls: [
     {
       kind: 'select',
@@ -126,14 +128,17 @@ const sunWidget: LayerDef = {
       label: 'Style',
       options: sunWidgetVariants.map((variant) => ({ value: variant, label: variant })),
     },
+    { kind: 'switch', key: 'showTime', label: 'Show time' },
   ],
   Render: ({ config, sunAngle }) => {
     const variant = (sunWidgetVariants as readonly string[]).includes(config.variant as string)
       ? (config.variant as SunWidgetVariant)
       : 'gnomon'
+    const time = formatTimeOfDay(cycleTimeAtSunAngle(Math.PI - sunAngle) / sunCycleDurationSeconds)
     return (
       <div aria-hidden className="lab-sun-widget">
         <SunWidget angle={sunAngle} variant={variant} />
+        {config.showTime === true ? <span className="sun-widget-clock">{time}</span> : null}
       </div>
     )
   },

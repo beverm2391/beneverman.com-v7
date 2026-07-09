@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Slider } from '@/components/ui/slider'
+import { Switch } from '@/components/ui/switch'
 import { getLayerDef, LAYER_TYPES, type Control } from './layers'
 import type { LayerConfig, LayerInstance, LayerType, Scene } from './scene'
 
@@ -227,8 +228,17 @@ function LayerControl({
 }: {
   config: LayerConfig
   control: Control
-  onChange: (value: number | string) => void
+  onChange: (value: number | string | boolean) => void
 }) {
+  if (control.kind === 'switch') {
+    return (
+      <label className="lab__control lab__control--row">
+        <span className="lab__control-label">{control.label}</span>
+        <Switch checked={config[control.key] === true} onCheckedChange={(checked) => onChange(checked)} />
+      </label>
+    )
+  }
+
   if (control.kind === 'select') {
     const value = typeof config[control.key] === 'string' ? (config[control.key] as string) : control.options[0]?.value
     return (

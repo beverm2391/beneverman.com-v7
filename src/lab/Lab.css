@@ -273,6 +273,12 @@
   gap: 0.3rem;
 }
 
+.lab__control--row {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
 .lab__control-label {
   display: flex;
   align-items: center;
@@ -339,12 +345,16 @@
   color: #171717;
 }
 
-/* Sun indicator overlay — mirrors the homepage placement (top-left, ~3.1rem). */
+/* Sun indicator overlay — mirrors the homepage placement (top-left, ~3.1rem),
+   with the optional clock stacked underneath. */
 .lab-sun-widget {
   position: absolute;
   top: clamp(1rem, 2.5vw, 2rem);
   left: clamp(1.25rem, 3vw, 2.5rem);
   width: 3.1rem;
+  display: grid;
+  gap: 0.2rem;
+  justify-items: center;
   color: #171717;
 }
 
