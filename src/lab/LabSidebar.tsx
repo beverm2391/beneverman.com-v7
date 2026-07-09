@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ChevronDown, Copy, GripVertical, Plus, Trash2 } from 'lucide-react'
+import { ChevronDown, GripVertical, Plus, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -34,19 +34,7 @@ function itemsFrom(options: { value: string; label: string }[]) {
   return Object.fromEntries(options.map((option) => [option.value, option.label]))
 }
 
-export function LabSidebar({
-  actions,
-  dirty,
-  savedScenes,
-  scene,
-  status,
-}: {
-  actions: LabActions
-  dirty: boolean
-  savedScenes: Scene[]
-  scene: Scene
-  status: string
-}) {
+export function LabSidebar({ actions, scene }: { actions: LabActions; scene: Scene }) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [addOpen, setAddOpen] = useState(false)
   const [dragFrom, setDragFrom] = useState<number | null>(null)
@@ -61,12 +49,6 @@ export function LabSidebar({
     return () => document.removeEventListener('mouseup', disarm)
   }, [armedId])
 
-  const isSaved = savedScenes.some((s) => s.id === scene.id)
-  const sceneOptions = [
-    ...(isSaved ? [] : [{ value: scene.id, label: `${scene.name} (unsaved)` }]),
-    ...savedScenes.map((saved) => ({ value: saved.id, label: saved.name })),
-  ]
-
   const toggleCollapsed = (id: string) =>
     setCollapsed((prev) => {
       const next = new Set(prev)
@@ -77,43 +59,6 @@ export function LabSidebar({
 
   return (
     <aside className="lab__sidebar">
-      <header className="lab__scenebar">
-        <div className="lab__scene-select-row">
-          <Select items={itemsFrom(sceneOptions)} onValueChange={(value) => actions.selectScene(String(value))} value={scene.id}>
-            <SelectTrigger size="sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectPopup>
-              {sceneOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectPopup>
-          </Select>
-          {dirty ? <span className="lab__dirty" title="Unsaved changes" /> : null}
-        </div>
-
-        <input
-          className="lab__scene-name"
-          onChange={(event) => actions.renameScene(event.target.value)}
-          spellCheck={false}
-          value={scene.name}
-        />
-
-        <div className="lab__scene-actions">
-          <Button onClick={actions.newScene} size="sm" variant="outline">
-            New
-          </Button>
-          <Button onClick={actions.duplicateScene} size="sm" variant="outline">
-            Duplicate
-          </Button>
-          <Button onClick={actions.deleteScene} size="sm" variant="destructive-outline">
-            Delete
-          </Button>
-        </div>
-      </header>
-
       <section className="lab__scene-params">
         <SliderRow label="Sun angle" max={TAU} min={0} onChange={actions.setSunAngle} step={0.01} value={scene.sunAngle} />
       </section>
@@ -174,16 +119,6 @@ export function LabSidebar({
           ))}
         </ul>
       </section>
-
-      <footer className="lab__sidebar-foot">
-        <Button onClick={actions.saveScene} size="sm" variant={dirty ? 'default' : 'outline'}>
-          {dirty ? 'Save' : 'Saved'}
-        </Button>
-        <Button onClick={actions.copyJson} size="sm" variant="outline">
-          <Copy /> JSON
-        </Button>
-        <span className="lab__status">{status}</span>
-      </footer>
     </aside>
   )
 }

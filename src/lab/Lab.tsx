@@ -14,6 +14,7 @@ import {
 } from './scene'
 import { deleteScene as deleteSceneOnDisk, listScenes, saveScene as saveSceneToDisk } from './scenesClient'
 import { LabSidebar, type LabActions } from './LabSidebar'
+import { LabTopBar } from './LabTopBar'
 import './coss.css'
 import './Lab.css'
 
@@ -143,8 +144,9 @@ export default function Lab() {
 
   return (
     <div className="lab dark">
-      <LabSidebar actions={actions} dirty={dirty} savedScenes={savedScenes} scene={scene} status={status} />
+      <LabSidebar actions={actions} scene={scene} />
       <div className="lab__stage">
+        <LabTopBar actions={actions} dirty={dirty} savedScenes={savedScenes} scene={scene} status={status} />
         <div className="lab__viewer">
           <LayerStack scene={scene} />
         </div>
