@@ -5,8 +5,8 @@
 
 const tau = Math.PI * 2
 
-export const sunDayDurationSeconds = 170
-export const sunNightDurationSeconds = 60
+export const sunDayDurationSeconds = 243
+export const sunNightDurationSeconds = 86
 export const sunCycleDurationSeconds = sunDayDurationSeconds + sunNightDurationSeconds
 
 export function sunAngleAtCycleTime(cycleTime: number) {
@@ -34,8 +34,8 @@ export function cycleTimeAtSunAngle(angle: number) {
   return sunDayDurationSeconds + (Math.acos(1 - 2 * easedProgress) / Math.PI) * sunNightDurationSeconds
 }
 
-// One 0..1 fraction scrubs the whole cycle, displayed as a clock where the 170s
-// day maps to 06:00-18:00 and the 60s night to 18:00-06:00.
+// One 0..1 fraction scrubs the whole cycle, displayed as a clock where the day
+// segment maps to 06:00-18:00 and the night segment to 18:00-06:00.
 export function formatTimeOfDay(fraction: number) {
   const cycleTime = fraction * sunCycleDurationSeconds
   const hour =
