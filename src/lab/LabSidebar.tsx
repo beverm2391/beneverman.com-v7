@@ -181,10 +181,11 @@ function LayerCard({
           <Button
             aria-label="Mesh inspector"
             aria-pressed={inspecting}
+            className={inspecting ? 'lab__mesh-btn is-active' : 'lab__mesh-btn'}
             onClick={onToggleInspect}
             size="icon-xs"
-            title="Mesh inspector"
-            variant={inspecting ? 'secondary' : 'ghost'}
+            title={inspecting ? 'Mesh inspector on' : 'Mesh inspector'}
+            variant="ghost"
           >
             <Box />
           </Button>

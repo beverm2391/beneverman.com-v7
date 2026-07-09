@@ -272,6 +272,21 @@
   transform: rotate(-90deg);
 }
 
+/* Mesh inspector button: clear accent "on" state vs a dim "off" state. */
+.lab__mesh-btn {
+  color: var(--lab-text-faint);
+}
+
+.lab__mesh-btn.is-active {
+  background: var(--lab-accent);
+  border-color: var(--lab-accent);
+  color: #06131c;
+}
+
+.lab__mesh-btn.is-active svg {
+  opacity: 1;
+}
+
 .lab__layer-remove {
   flex: 0 0 auto;
   display: inline-flex;
