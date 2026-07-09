@@ -1,0 +1,421 @@
+/* Dev-only scene lab. Dark, dense layer-editor chrome (After Effects / Figma
+   feel) wrapped around a floating cream "inset viewer" that shows the scene as
+   it renders on the site. */
+
+.lab {
+  --lab-bg: #08080a;
+  --lab-panel: #101013;
+  --lab-panel-2: #17171b;
+  --lab-line: rgb(255 255 255 / 0.07);
+  --lab-line-strong: rgb(255 255 255 / 0.12);
+  --lab-text: rgb(255 255 255 / 0.88);
+  --lab-text-dim: rgb(255 255 255 / 0.52);
+  --lab-text-faint: rgb(255 255 255 / 0.36);
+  --lab-accent: #7dd3fc;
+  --lab-danger: #f87171;
+
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 19rem minmax(0, 1fr);
+  gap: 0.6rem;
+  padding: 0.6rem;
+  background: var(--lab-bg);
+  color: var(--lab-text);
+  font-family: 'Geist', Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.lab--loading {
+  display: grid;
+  place-items: center;
+  color: var(--lab-text-dim);
+}
+
+/* ---- sidebar ---------------------------------------------------------- */
+
+/* Whole sidebar scrolls as one column so nothing gets clipped. */
+.lab__sidebar {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--lab-panel);
+  border: 1px solid var(--lab-line);
+  border-radius: 0.7rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* ---- top bar (global scene chrome, above the viewer) ------------------ */
+
+.lab__topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.45rem 0.55rem;
+  background: var(--lab-panel);
+  border: 1px solid var(--lab-line);
+  border-radius: 0.7rem;
+}
+
+.lab__topbar-left,
+.lab__topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.lab__topbar-left {
+  flex: 1 1 auto;
+}
+
+.lab__topbar-left [data-slot='select-trigger'] {
+  min-width: 8rem;
+  max-width: 12rem;
+}
+
+.lab__dirty {
+  flex: 0 0 auto;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--lab-accent);
+  box-shadow: 0 0 0 3px rgb(125 211 252 / 0.16);
+}
+
+.lab__scene-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 18rem;
+  padding: 0.3rem 0.3rem;
+  border: 1px solid transparent;
+  border-radius: 0.4rem;
+  background: transparent;
+  color: var(--lab-text);
+  font: inherit;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.lab__scene-name:hover {
+  border-color: var(--lab-line);
+}
+
+.lab__scene-name:focus {
+  outline: none;
+  border-color: var(--lab-line-strong);
+  background: var(--lab-panel-2);
+}
+
+/* ---- scene params ----------------------------------------------------- */
+
+.lab__scene-params {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 0.7rem;
+  border-bottom: 1px solid var(--lab-line);
+}
+
+.lab__anim-param {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+/* ---- layers ----------------------------------------------------------- */
+
+.lab__layers {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.lab__layers-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.55rem 0.7rem 0.45rem;
+}
+
+.lab__section-title {
+  color: var(--lab-text-faint);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.lab__add {
+  position: relative;
+}
+
+.lab__add-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.3rem);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 9rem;
+  padding: 0.25rem;
+  border: 1px solid var(--lab-line-strong);
+  border-radius: 0.5rem;
+  background: var(--lab-panel-2);
+  box-shadow: 0 0.8rem 2rem rgb(0 0 0 / 0.5);
+}
+
+.lab__add-item {
+  padding: 0.4rem 0.5rem;
+  border: 0;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: var(--lab-text-dim);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lab__add-item:hover {
+  color: var(--lab-text);
+  background: rgb(255 255 255 / 0.07);
+}
+
+.lab__layer-list {
+  margin: 0;
+  padding: 0 0.55rem 0.55rem;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.lab__layer {
+  border: 1px solid var(--lab-line);
+  border-radius: 0.5rem;
+  background: var(--lab-panel-2);
+  overflow: hidden;
+}
+
+.lab__layer.is-dragging {
+  opacity: 0.5;
+}
+
+.lab__layer-head {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.4rem;
+}
+
+.lab__grip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.1rem;
+  border: 0;
+  background: transparent;
+  color: var(--lab-text-faint);
+  cursor: grab;
+  touch-action: none;
+}
+
+.lab__grip:hover {
+  color: var(--lab-text-dim);
+}
+
+.lab__grip:active {
+  cursor: grabbing;
+}
+
+.lab__layer-eye {
+  flex: 0 0 auto;
+  width: 0.62rem;
+  height: 0.62rem;
+  padding: 0;
+  border: 1px solid var(--lab-line-strong);
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.lab__layer-eye.is-on {
+  border-color: transparent;
+  background: #6ee7b7;
+}
+
+.lab__layer-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--lab-text);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lab__caret {
+  color: var(--lab-text-faint);
+  transition: transform 140ms ease;
+}
+
+.lab__caret.is-collapsed {
+  transform: rotate(-90deg);
+}
+
+/* Mesh inspector button: clear accent "on" state vs a dim "off" state. */
+.lab__mesh-btn {
+  color: var(--lab-text-faint);
+}
+
+.lab__mesh-btn.is-active {
+  background: rgb(255 255 255 / 0.9);
+  border-color: transparent;
+  color: #101012;
+}
+
+.lab__mesh-btn.is-active svg {
+  opacity: 1;
+}
+
+.lab__layer-remove {
+  flex: 0 0 auto;
+  display: inline-flex;
+  padding: 0.2rem;
+  border: 0;
+  border-radius: 0.3rem;
+  background: transparent;
+  color: var(--lab-text-faint);
+  cursor: pointer;
+}
+
+.lab__layer-remove:hover {
+  color: var(--lab-danger);
+  background: rgb(248 113 113 / 0.1);
+}
+
+.lab__layer-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.15rem 0.55rem 0.6rem;
+  border-top: 1px solid var(--lab-line);
+}
+
+/* ---- controls --------------------------------------------------------- */
+
+.lab__control {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.lab__control--row {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Bigger, easier slider target: keep the track thin but expand the clickable
+   band (~26px) and the thumb hit area so it's not a pixel-hunt. */
+.lab__control [data-slot='slider-control'] {
+  align-items: center;
+  min-height: 1.65rem;
+  cursor: pointer;
+}
+
+.lab__control [data-slot='slider-thumb'] {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.lab__control-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  color: var(--lab-text-dim);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+/* ---- footer ----------------------------------------------------------- */
+
+.lab__status {
+  color: var(--lab-text-faint);
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
+/* ---- viewer ----------------------------------------------------------- */
+
+.lab__stage {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.lab__viewer {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  border-radius: 0.75rem;
+  background: #f2f0ee;
+  overflow: hidden;
+}
+
+.lab-render-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.lab-render-layer canvas,
+.lab-render-layer .daylight-shadow-layer,
+.lab-render-layer .background-shader-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.lab-text-layer {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--site-inline-padding, clamp(1.25rem, 4vw, 4rem));
+  color: #171717;
+}
+
+/* Sun indicator overlay — mirrors the homepage placement (top-left, ~3.1rem),
+   with the optional clock stacked underneath. */
+.lab-sun-widget {
+  position: absolute;
+  top: clamp(1rem, 2.5vw, 2rem);
+  left: clamp(1.25rem, 3vw, 2.5rem);
+  width: 3.1rem;
+  display: grid;
+  gap: 0.2rem;
+  justify-items: center;
+  color: #171717;
+}
+
+@media (max-width: 900px) {
+  .lab {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+}
