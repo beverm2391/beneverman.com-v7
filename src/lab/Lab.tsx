@@ -12,6 +12,7 @@ import {
   type LayerType,
   type Scene,
 } from './scene'
+import { sunCycleDurationSeconds } from '../sunClock'
 import { deleteScene as deleteSceneOnDisk, listScenes, saveScene as saveSceneToDisk } from './scenesClient'
 import { LabSidebar, type LabActions } from './LabSidebar'
 import { LabTopBar } from './LabTopBar'
@@ -27,7 +28,8 @@ export default function Lab() {
   // Sun-angle animation is a preview aid, not part of the saved scene: it sweeps
   // a display angle without touching scene.sunAngle.
   const [animateSun, setAnimateSun] = useState(false)
-  const [sunRate, setSunRate] = useState(0.6)
+  // Rate is a multiplier on the real site cycle: 1 = actual homepage speed.
+  const [sunRate, setSunRate] = useState(1)
   const [animatedAngle, setAnimatedAngle] = useState(0)
   const angleRef = useRef(0)
 
@@ -93,10 +95,14 @@ export default function Lab() {
     }
     let raf = 0
     let last = performance.now()
+    const tau = Math.PI * 2
+    // Match the homepage: it mirrors the cycle (PI - angle), so the effective
+    // sun angle DECREASES over time. rate 1 = one cycle per sunCycleDuration.
+    const speed = sunRate * (tau / sunCycleDurationSeconds)
     const tick = (now: number) => {
       const dt = (now - last) / 1000
       last = now
-      angleRef.current = (angleRef.current + sunRate * dt) % (Math.PI * 2)
+      angleRef.current = (((angleRef.current - speed * dt) % tau) + tau) % tau
       setAnimatedAngle(angleRef.current)
       raf = requestAnimationFrame(tick)
     }

@@ -73,7 +73,7 @@ export function LabSidebar({ actions, scene, sunAnim }: { actions: LabActions; s
           <Switch checked={sunAnim.on} onCheckedChange={sunAnim.setOn} />
         </label>
         {sunAnim.on ? (
-          <SliderRow label="Rate" max={2} min={0.05} onChange={sunAnim.setRate} step={0.05} value={sunAnim.rate} />
+          <SliderRow label="Rate ×" max={8} min={0.1} onChange={sunAnim.setRate} step={0.1} value={sunAnim.rate} />
         ) : null}
       </section>
 

@@ -113,7 +113,10 @@
 /* ---- scene params ----------------------------------------------------- */
 
 .lab__scene-params {
-  padding: 0.65rem 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 0.7rem;
   border-bottom: 1px solid var(--lab-line);
 }
 
